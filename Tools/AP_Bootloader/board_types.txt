@@ -324,7 +324,6 @@ AP_HW_X-MAV-AP-H743R1                1203
 AP_HW_ORQAH7QUADCORE                 1204
 AP_HW_ESP32_PERIPH                   1205
 AP_HW_ESP32S3_PERIPH                 1206
-AP_HW_HRON_CHICKADEE                 1207
 
 AP_HW_CSKY-PMU                       1212
 
@@ -336,6 +335,8 @@ AP_HW_YARIV6X                        1234
 AP_HW_CBUnmanned-CM405-FC            1301
 
 AP_HW_KHA_ETH                        1315
+
+AP_HW_HRON_Chickadee                 1337
 
 AP_HW_FlysparkF4                     1361
 
