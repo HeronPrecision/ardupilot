@@ -200,15 +200,16 @@ DMA_PRIORITY = S*
 # USB detection pin
 PA9 USB_DETECT INPUT
 
-# no built-in compass except BMM350, probe external I2C buses
+# bmm350 integrated, but also probe external I2C buses
 define HAL_PROBE_EXTERNAL_I2C_COMPASSES
 define HAL_I2C_INTERNAL_MASK 0
 define HAL_COMPASS_AUTO_ROT_DEFAULT 2
 define HAL_DEFAULT_INS_FAST_SAMPLE 3
 
 # Motor order implies Betaflight/X for standard ESCs
-define HAL_FRAME_TYPE_DEFAULT 12
-define DEFAULT_NTF_LED_TYPES 455
+# define HAL_FRAME_TYPE_DEFAULT 12
+# define DEFAULT_NTF_LED_TYPES 455
+define DEFAULT_NTF_LED_TYPES 257
 
 # Enable multiple gyros
 define HAL_INS_NUM_GYROS 3
