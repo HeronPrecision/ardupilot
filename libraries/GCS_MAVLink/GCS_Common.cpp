@@ -558,8 +558,8 @@ void GCS_MAVLINK::send_proximity()
     }
 
     // get min/max distances
-    const uint16_t dist_min = (uint16_t)(proximity->distance_min() * 100.0f); // minimum distance the sensor can measure in centimeters
-    const uint16_t dist_max = (uint16_t)(proximity->distance_max() * 100.0f); // maximum distance the sensor can measure in centimeters
+    const uint16_t dist_min_cm = (uint16_t)(proximity->distance_min_m() * 100.0f);  // minimum distance the sensor can measure in centimeters
+    const uint16_t dist_max_cm = (uint16_t)(proximity->distance_max_m() * 100.0f);  // maximum distance the sensor can measure in centimeters
 
     // send horizontal distances
     if (proximity->get_status() == AP_Proximity::Status::Good) {
@@ -579,8 +579,8 @@ void GCS_MAVLINK::send_proximity()
                 mavlink_msg_distance_sensor_send(
                         chan,
                         AP_HAL::millis(),                               // time since system boot
-                        dist_min,                                       // minimum distance the sensor can measure in centimeters
-                        dist_max,                                       // maximum distance the sensor can measure in centimeters
+                        dist_min_cm,                                    // minimum distance the sensor can measure in centimeters
+                        dist_max_cm,                                    // maximum distance the sensor can measure in centimeters
                         (uint16_t)(dist_array.distance[i] * 100.0f),    // current distance reading
                         MAV_DISTANCE_SENSOR_LASER,                      // type from MAV_DISTANCE_SENSOR enum
                         PROXIMITY_SENSOR_ID_START + i,                  // onboard ID of the sensor
@@ -592,21 +592,21 @@ void GCS_MAVLINK::send_proximity()
     }
 
     // send upward distance
-    float dist_up;
-    if (proximity->get_upward_distance(dist_up)) {
+    float dist_up_m;
+    if (proximity->get_upward_distance(dist_up_m)) {
         if (!HAVE_PAYLOAD_SPACE(chan, DISTANCE_SENSOR)) {
             return;
         }
         mavlink_msg_distance_sensor_send(
                 chan,
-                AP_HAL::millis(),                                         // time since system boot
-                dist_min,                                                 // minimum distance the sensor can measure in centimeters
-                dist_max,                                                 // maximum distance the sensor can measure in centimeters
-                (uint16_t)(dist_up * 100.0f),                             // current distance reading
-                MAV_DISTANCE_SENSOR_LASER,                                // type from MAV_DISTANCE_SENSOR enum
-                PROXIMITY_SENSOR_ID_START + PROXIMITY_MAX_DIRECTION + 1,  // onboard ID of the sensor
-                MAV_SENSOR_ROTATION_PITCH_90,                             // direction upwards
-                0,                                                        // Measurement covariance in centimeters, 0 for unknown / invalid readings
+                AP_HAL::millis(),                                           // time since system boot
+                dist_min_cm,                                                // minimum distance the sensor can measure in centimeters
+                dist_max_cm,                                                // maximum distance the sensor can measure in centimeters
+                (uint16_t)(dist_up_m * 100.0f),                             // current distance reading
+                MAV_DISTANCE_SENSOR_LASER,                                  // type from MAV_DISTANCE_SENSOR enum
+                PROXIMITY_SENSOR_ID_START + PROXIMITY_MAX_DIRECTION + 1,    // onboard ID of the sensor
+                MAV_SENSOR_ROTATION_PITCH_90,                               // direction upwards
+                0,                                                          // Measurement covariance in centimeters, 0 for unknown / invalid readings
                 0, 0, nullptr, 0);
     }
 }
@@ -3488,6 +3488,11 @@ void GCS_MAVLINK::send_vfr_hud()
  */
 MAV_RESULT GCS_MAVLINK::handle_preflight_reboot(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
 {
+    if ((packet.target_component != MAV_COMP_ID_ALL) && (packet.target_component != mavlink_system.compid)) {
+        // Make sure reboot/shutdown commands sent to a component don't cause the autopilot to reboot.
+        return MAV_RESULT_DENIED;
+    }
+
     if (is_equal(packet.param1, 42.0f) &&
         is_equal(packet.param2, 24.0f) &&
         is_equal(packet.param3, 71.0f)) {
@@ -3920,6 +3925,11 @@ void GCS_MAVLINK::handle_set_gps_global_origin(const mavlink_message_t &msg)
 
     // sanity check location
     if (!check_latlng(packet.latitude, packet.longitude)) {
+        // silently drop the request
+        return;
+    }
+    // sanity check altitude in mm, note that abs can't handle INT32_MIN correctly
+    if (packet.altitude < -LOCATION_ALT_MAX_M * 1000 || packet.altitude > LOCATION_ALT_MAX_M * 1000) {
         // silently drop the request
         return;
     }
@@ -7009,17 +7019,21 @@ void GCS_MAVLINK::initialise_message_intervals_from_config_files()
 
 void GCS_MAVLINK::initialise_message_intervals_from_streamrates()
 {
-    // this is O(n^2), but it's once at boot and across a 10-entry list...
-    for (uint8_t i=0; all_stream_entries[i].ap_message_ids != nullptr; i++) {
-        initialise_message_intervals_for_stream(all_stream_entries[i].stream_id);
-    }
 #if HAL_HIGH_LATENCY2_ENABLED
     if (!is_high_latency_link) {
+        // this is O(n^2), but it's once at boot and across a 10-entry list...
+        for (uint8_t i=0; all_stream_entries[i].ap_message_ids != nullptr; i++) {
+            initialise_message_intervals_for_stream(all_stream_entries[i].stream_id);
+        }
         set_mavlink_message_id_interval(MAVLINK_MSG_ID_HEARTBEAT, 1000);
     } else {
         set_mavlink_message_id_interval(MAVLINK_MSG_ID_HIGH_LATENCY2, 5000);
     }
 #else
+    // this is O(n^2), but it's once at boot and across a 10-entry list...
+    for (uint8_t i=0; all_stream_entries[i].ap_message_ids != nullptr; i++) {
+        initialise_message_intervals_for_stream(all_stream_entries[i].stream_id);
+    }
     set_mavlink_message_id_interval(MAVLINK_MSG_ID_HEARTBEAT, 1000);
 #endif
 }

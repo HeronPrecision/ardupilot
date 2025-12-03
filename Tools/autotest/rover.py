@@ -202,6 +202,68 @@ class AutoTestRover(vehicle_test_suite.TestSuite):
         self.disarm_vehicle()
         self.progress("Loiter or Hold as throttle failsafe OK")
 
+    def PARAM_ERROR(self):
+        '''test PARAM_ERROR mavlink message'''
+        self.start_subtest("Non-existent parameter (get)")
+        self.context_push()
+        self.context_collect('PARAM_ERROR')
+        self.install_messageprinter_handlers_context(['PARAM_ERROR'])
+        self.send_get_parameter_direct("BOB")
+        self.assert_received_message_field_values('PARAM_ERROR', {
+            "target_system": 250,
+            "target_component": 250,
+            "param_id": 'BOB',
+            "param_index": -1,
+            "error": mavutil.mavlink.MAV_PARAM_ERROR_DOES_NOT_EXIST,
+        }, check_context=True, very_verbose=True)
+        self.context_pop()
+
+        self.start_subtest("Non-existent parameter (get-by-id)")
+        self.context_push()
+        self.context_collect('PARAM_ERROR')
+        self.install_messageprinter_handlers_context(['PARAM_ERROR'])
+        non_existent_param_index = 32764  # hopefully, anyway....
+        self.mav.mav.param_request_read_send(
+            self.sysid_thismav(),
+            1,
+            bytes("", 'ascii'),
+            non_existent_param_index
+        )
+        self.assert_received_message_field_values('PARAM_ERROR', {
+            "target_system": 250,
+            "target_component": 250,
+            "param_id": '',
+            "param_index": non_existent_param_index,
+            "error": mavutil.mavlink.MAV_PARAM_ERROR_DOES_NOT_EXIST,
+        }, check_context=True, very_verbose=True)
+        self.context_pop()
+
+        self.start_subtest("Non-existent parameter (set)")
+        self.context_push()
+        self.context_collect('PARAM_ERROR')
+        self.send_set_parameter_direct("BOB", 1)
+        self.assert_received_message_field_values('PARAM_ERROR', {
+            "target_system": 250,
+            "target_component": 250,
+            "param_id": 'BOB',
+            "param_index": -1,
+            "error": mavutil.mavlink.MAV_PARAM_ERROR_DOES_NOT_EXIST,
+        }, check_context=True, very_verbose=True)
+        self.context_pop()
+
+        self.start_subtest("Try to set a bad parameter value")
+        self.context_push()
+        self.context_collect('PARAM_ERROR')
+        self.send_set_parameter_direct("SPRAY_ENABLE", float("nan"))
+        self.assert_received_message_field_values('PARAM_ERROR', {
+            "target_system": 250,
+            "target_component": 250,
+            "param_id": 'SPRAY_ENABLE',
+            "param_index": -1,
+            "error": mavutil.mavlink.MAV_PARAM_ERROR_VALUE_OUT_OF_RANGE,
+        }, check_context=True, very_verbose=True)
+        self.context_pop()
+
     def Sprayer(self):
         """Test sprayer functionality."""
         rc_ch = 5
@@ -6994,6 +7056,39 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 if m.interval_us != interval_us:
                     raise NotAchievedException(f"Unexpected interval_us (want={interval_us}, got={m.interval_us})")
 
+    def ScriptingLocationBindings(self):
+        '''test scripting bindings'''
+        self.install_script_content_context("test-scripting-bindings.lua", """
+function main()
+  here = ahrs:get_location()
+  if here == nil then
+     gcs:send_text(0, "Need location")
+     return
+  end
+  if here.alt == 0 then
+     gcs:send_text(0, "zero altitude?!")
+     return
+  end
+  ALT_FRAME = { ABSOLUTE = 0, ABOVE_HOME = 1, ABOVE_ORIGIN = 2, ABOVE_TERRAIN = 3 }
+  here:set_alt_m(12.34, ALT_FRAME.ABSOLUTE)
+  want = 1234
+  if here:alt() ~= want then
+     gcs:send_text(0, string.format("Bad altitude" .. here:alt() .. " want " .. want))
+     return
+  end
+  gcs:send_text(0, "Tests OK")
+end
+function update()
+  main()
+  return update, 1000
+end
+
+return update()
+""")
+        self.set_parameter('SCR_ENABLE', 1)
+        self.reboot_sitl()
+        self.wait_statustext('Tests OK')
+
     def DriveEachFrame(self):
         '''drive each frame (except BalanceBot) in a mission to ensure basic functionality'''
         vinfo = vehicleinfo.VehicleInfo()
@@ -7135,6 +7230,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.RoverInitialMode,
             self.DriveMaxRCIN,
             self.NoArmWithoutMissionItems,
+            self.PARAM_ERROR,
             self.CompassPrearms,
             self.ManyMAVLinkConnections,
             self.MAV_CMD_DO_SET_REVERSE,
@@ -7144,6 +7240,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.NetworkingWebServer,
             self.NetworkingWebServerPPP,
             self.RTL_SPEED,
+            self.ScriptingLocationBindings,
             self.MissionRetransfer,
             self.FenceFullAndPartialTransfer,
             self.MissionPolyEnabledPreArm,

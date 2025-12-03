@@ -226,7 +226,9 @@ bool AP_Arming_Copter::parameter_checks(bool display_failure)
 
         // acro balance parameter check
 #if MODE_ACRO_ENABLED || MODE_SPORT_ENABLED
-        if ((copter.g.acro_balance_roll > copter.attitude_control->get_angle_roll_p().kP()) || (copter.g.acro_balance_pitch > copter.attitude_control->get_angle_pitch_p().kP())) {
+        if (is_negative(copter.g.acro_balance_roll) || is_negative(copter.g.acro_balance_pitch) ||
+            (copter.g.acro_balance_roll > copter.attitude_control->get_angle_roll_p().kP()) || 
+            (copter.g.acro_balance_pitch > copter.attitude_control->get_angle_pitch_p().kP())) {
             check_failed(Check::PARAMETERS, display_failure, "Check ACRO_BAL_ROLL/PITCH");
             return false;
         }
@@ -580,7 +582,7 @@ bool AP_Arming_Copter::arm_checks(AP_Arming::Method method)
         const Compass &_compass = AP::compass();
         // check compass health
         if (!_compass.healthy()) {
-            check_failed(true, "Compass not healthy");
+            check_failed(true, "Compass %d not healthy", _compass.get_first_usable() + 1);
             return false;
         }
     }
