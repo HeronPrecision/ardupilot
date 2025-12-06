@@ -36,10 +36,9 @@ PE4 GYRO3_CS CS
 PE3 BARO_CS CS
 PA4 MAX7456_CS CS
 
-# LEDs disabled for SWD debugging functionality
-# PA13 LED_BOOTLOADER removed - needed for SWDIO
-define HAL_LED_ON -1  # Disable all LEDs
+# LEDs - Keep LED_BOOTLOADER for proper bootloader operation
+PA13 LED_BOOTLOADER OUTPUT LOW  # Blue LED - required for bootloader
+define HAL_LED_ON 0  # Enable LEDs
 
-# SWD Debugging - Full SWD configuration
-PA13 JTMS-SWDIO SWD  # SWD data line
-PA14 JTCK-SWCLK SWD  # SWD clock line
+# SWD Debugging - Single SWD pin (PA14 only)
+PA14 JTCK-SWCLK SWD  # SWD clock line only
