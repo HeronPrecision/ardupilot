@@ -140,19 +140,22 @@ PE7  PINIO4 OUTPUT GPIO(84) LOW  # M11-12 enable (pull down to enable)
 PD10 PINIO5 OUTPUT GPIO(85) HIGH # Route picker (high for motors)
 PD11 PINIO6 OUTPUT GPIO(86) HIGH # Route picker (high for motors)
 
-# LEDs
-PA13 LED0 OUTPUT LOW GPIO(90)  # Blue LED
-define HAL_GPIO_A_LED_PIN 90
-
-PA15 LED1 OUTPUT LOW GPIO(91)  # Green LED  
+# LEDs - Reconfigured for SWD debugging functionality
+PA15 LED1 OUTPUT LOW GPIO(91)  # Green LED (PA15 not SWD pin)
 define HAL_GPIO_B_LED_PIN 91
-
-PA14 LED2 OUTPUT LOW GPIO(92)  # Red LED
-define HAL_GPIO_C_LED_PIN 92
 
 define HAL_GPIO_LED_ON 1
 define AP_NOTIFY_GPIO_LED_2_ENABLED 1
-define AP_NOTIFY_GPIO_LED_3_ENABLED 1
+define AP_NOTIFY_GPIO_LED_3_ENABLED 0
+
+# SWD Debugging - Full SWD configuration for main firmware
+PA13 JTMS-SWDIO SWD  # SWD data line (replaces LED0)
+PA14 JTCK-SWCLK SWD  # SWD clock line (replaces LED2)
+define HAL_GPIO_A_LED_PIN -1  # Disable PA13 LED for SWD
+define HAL_GPIO_C_LED_PIN -1  # Disable PA14 LED for SWD
+
+# USB configuration for main firmware
+include hwdef.inc
 
 # SD Card - follow proper ArduPilot structure
 include sdcard.inc
