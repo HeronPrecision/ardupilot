@@ -134,14 +134,14 @@ int main(void)
         try_boot = false;
         led_set(LED_BAD_FW);
     }
-#ifndef BOOTLOADER_DEV_LIST
+    // fast boot for good firmware if we haven't been told to stay
+    // in bootloader
     else if (timeout == HAL_BOOTLOADER_TIMEOUT) {
-        // fast boot for good firmware if we haven't been told to stay
-        // in bootloader
         try_boot = true;
         timeout = 1000;
     }
-#endif   // ifndef(BOOTLOADER_DEV_LIST)
+    // Note: BOOTLOADER_DEV_LIST condition removed to fix timeout bug for SERIAL_ORDER boards
+    // The timeout logic now works regardless of whether SERIAL_ORDER is defined
 #if AP_BOOTLOADER_NETWORK_ENABLED
     if (ok == check_fw_result_t::CHECK_FW_OK) {
         const auto *app_descriptor = get_app_descriptor();
