@@ -19,6 +19,9 @@ FLASH_RESERVE_START_KB 0
 # the location where the bootloader will put the firmware
 FLASH_BOOTLOADER_LOAD_KB 128
 
+# Reduce bootloader timeout to 2 seconds for faster boot
+define HAL_BOOTLOADER_TIMEOUT 2
+
 # order of UARTs (and USB)
 SERIAL_ORDER OTG1
 
