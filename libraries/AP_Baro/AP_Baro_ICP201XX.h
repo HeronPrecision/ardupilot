@@ -24,7 +24,6 @@ private:
     bool read_reg(uint8_t reg, uint8_t *val);
     uint8_t get_stored_chip_id();
     bool write_reg(uint8_t reg, uint8_t val);
-    int modify_reg(uint8_t reg, uint8_t clear_mask, uint8_t set_mask);
     bool mode_select(uint8_t mode);
     bool read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val);
     bool get_sensor_data(float *pressure, float *temperature);
@@ -38,10 +37,6 @@ private:
     uint8_t instance;
 
     AP_HAL::Device *dev;
-
-    // SPI FIFO buffers
-    uint8_t spi_tx_buf[8];  // TX buffer for SPI communication
-    uint8_t spi_rx_buf[8];  // RX buffer for SPI communication
 
     // accumulation structure, protected by _sem
     struct {
