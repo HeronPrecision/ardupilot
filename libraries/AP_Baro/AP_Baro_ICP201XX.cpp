@@ -83,8 +83,8 @@ AP_Baro_ICP201XX::AP_Baro_ICP201XX(AP_Baro &baro, AP_HAL::Device &_dev)
     , dev(&_dev)
 {
     // CRITICAL DEBUG MESSAGE - This should always appear
-    printf("=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===\n");
-    printf("=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===\n");
+    hal.console->printf("=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===\n");
+    hal.console->printf("=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===\n");
     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - CONSTRUCTOR DEBUG TEST");
 }
 
@@ -96,39 +96,39 @@ AP_Baro_Backend *AP_Baro_ICP201XX::probe(AP_Baro &baro, AP_HAL::Device &dev)
     hal.scheduler->delay(1000);
     
     // DEBUG: Very early debug output
-    printf("=== ICP201XX: PROBE FUNCTION STARTING ===\n");
-    printf("=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===\n");
-    printf("ICP201XX: probe() ENTRY - bus %u addr 0x%02x\n", 
+    hal.console->printf("=== ICP201XX: PROBE FUNCTION STARTING ===\n");
+    hal.console->printf("=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===\n");
+    hal.console->printf("ICP201XX: probe() ENTRY - bus %u addr 0x%02x\n", 
            dev.bus_num(), dev.get_bus_address());
-    printf("=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===\n");
+    hal.console->printf("=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===\n");
     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - PROBE DEBUG TEST");
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: probe ENTRY");
     
     AP_Baro_ICP201XX *sensor = NEW_NOTHROW AP_Baro_ICP201XX(baro, dev);
     if (!sensor) {
-        printf("ICP201XX: MEMORY ALLOCATION FAILED\n");
+        hal.console->printf("ICP201XX: MEMORY ALLOCATION FAILED\n");
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: MEMORY FAILED");
         return nullptr;
     }
     
-    printf("=== ICP201XX: SENSOR OBJECT CREATED ===\n");
-    printf("=== ICP201XX: THIS IS ANOTHER HELLO TEST ===\n");
-    printf("ICP201XX: sensor created, calling init()\n");
+    hal.console->printf("=== ICP201XX: SENSOR OBJECT CREATED ===\n");
+    hal.console->printf("=== ICP201XX: THIS IS ANOTHER HELLO TEST ===\n");
+    hal.console->printf("ICP201XX: sensor created, calling init()\n");
     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - SENSOR CREATED");
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: calling init");
     
     bool init_result = sensor->init();
-    printf("ICP201XX: init() returned %s\n", init_result ? "SUCCESS" : "FAILED");
+    hal.console->printf("ICP201XX: init() returned %s\n", init_result ? "SUCCESS" : "FAILED");
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: init result=%s", init_result ? "SUCCESS" : "FAILED");
     
     if (!init_result) {
-        printf("ICP201XX: PROBE FAILED - init returned false\n");
+        hal.console->printf("ICP201XX: PROBE FAILED - init returned false\n");
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: PROBE FAILED");
         delete sensor;
         return nullptr;
     }
     
-    printf("ICP201XX: PROBE SUCCESS!\n");
+    hal.console->printf("ICP201XX: PROBE SUCCESS!\n");
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: PROBE SUCCESS");
     return sensor;
 }

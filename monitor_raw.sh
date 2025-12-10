@@ -11,18 +11,27 @@ sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI
 echo "Waiting for device to enumerate..."
 sleep 3
 
-# Check if device exists
-if [ ! -e /dev/ttyACM0 ]; then
-    echo "Error: /dev/ttyACM0 not found"
+# Find available serial device
+SERIAL_DEVICE=""
+for dev in /dev/ttyACM0 /dev/ttyACM1 /dev/ttyUSB0 /dev/ttyUSB1; do
+    if [ -e "$dev" ]; then
+        SERIAL_DEVICE="$dev"
+        echo "Using serial device: $SERIAL_DEVICE"
+        break
+    fi
+done
+
+if [ -z "$SERIAL_DEVICE" ]; then
+    echo "Error: No suitable serial device found"
     exit 1
 fi
 
 # Configure serial port
-stty -F /dev/ttyACM0 57600 raw -echo
+stty -F "$SERIAL_DEVICE" 57600 raw -echo
 
 # Capture raw serial output for 15 seconds
 echo "Capturing serial output for 15 seconds..."
-timeout 15 cat /dev/ttyACM0 > /tmp/serial_output.raw
+timeout 15 cat "$SERIAL_DEVICE" > /tmp/serial_output.raw
 
 # Display both raw and interpreted output
 echo ""
