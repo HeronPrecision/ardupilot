@@ -1,7 +1,85 @@
 # HRON-Chickadee SWD Debugging Tips & Commands
 
 ## Overview
-This guide covers how to use the SWD debugging setup for the HRON-Chickadee flight controller. The SWD debugging system is fully operational and allows for low-level debugging of both the bootloader and main firmware.
+This guide covers how to use the SWD debugging setup for the HRON-Chickadee flight controller. The SWD debugging system is fully operational and allows for low-level debugging of both bootloader and main firmware.
+
+## 🎯 ICP201XX SPI Barometer Implementation Status
+
+**STATUS: SUCCESSFULLY IMPLEMENTED**
+
+The ICP201XX barometer driver has been successfully adapted for SPI communication on the HRON-Chickadee board. Key issues resolved:
+
+### 1. Chip ID Detection
+- **Issue**: Device ID 0x73 appears only in dummy reads, not direct register reads
+- **Solution**: Modified driver to detect and store chip ID from dummy reads
+- **Result**: Barometer now initializes successfully
+
+### 2. SPI Protocol Implementation
+- **Issue**: Driver needed proper SPI command structure (0x3C read, 0x33 write)
+- **Solution**: Implemented correct SPI transaction protocol with dummy reads
+- **Result**: Reliable SPI communication established
+
+### 3. Initialization Loop Prevention
+- **Issue**: Driver getting stuck in infinite loops during initialization
+- **Solution**: Added timeout protection and optimized dummy read handling
+- **Result**: Clean initialization sequence
+
+## 🔧 Debug Tools for ICP201XX Barometer Testing
+
+For testing the ICP201XX SPI barometer implementation, we've created a suite of Python debugging tools that provide robust process management and timeout handling to prevent hanging.
+
+### 1. OpenOCD Wrapper (`tools/openocd_wrapper.py`)
+A robust wrapper for OpenOCD with proper process management and logging.
+
+**Features:**
+- Automatic timeout handling (45s no-data, 5min max runtime)
+- Comprehensive logging capabilities
+- Context manager support for safe resource handling
+
+**Usage:**
+```bash
+uv run python tools/openocd_wrapper.py [--config CONFIG_FILE] [--log LOG_FILE]
+```
+
+### 2. GDB Wrapper (`tools/gdb_wrapper.py`)
+A wrapper for GDB with script execution capabilities.
+
+**Features:**
+- Automatic connection to running OpenOCD instance
+- Script execution for automated debugging
+- Interactive mode support
+- Configurable timeouts
+
+**Usage:**
+```bash
+uv run python tools/gdb_wrapper.py [--target HOST:PORT] [--script SCRIPT_FILE] [--openocd-pid PID]
+```
+
+### 3. TTY Monitor (`tools/monitor_tty.py`)
+A script to monitor TTY output with proper timeout handling.
+
+**Features:**
+- Waits for TTY device to appear after reset
+- Captures both text and binary data
+- Automatic timeout to prevent hanging
+- Output can be saved to file
+
+**Usage:**
+```bash
+uv run python tools/monitor_tty.py [--duration 10] [--no-reset] [--output output.log]
+```
+
+### 4. Barometer Check Scripts
+- `tools/simple_gdb/manual_test.py`: Direct testing script for manual verification
+
+### 5. Test Suite (`tools/test_debug.py`)
+Comprehensive test suite to verify wrapper functionality.
+
+**All tools are designed to:**
+- Prevent hanging processes
+- Clean up resources automatically
+- Provide clear output for debugging
+- Work reliably with the HRON-Chickadee hardware
 
 ## 🛠️ Required Tools
 

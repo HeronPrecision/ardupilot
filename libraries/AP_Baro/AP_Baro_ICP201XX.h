@@ -22,6 +22,7 @@ private:
     void dummy_reg();
     bool read_reg(uint8_t reg, uint8_t *buf, uint8_t len);
     bool read_reg(uint8_t reg, uint8_t *val);
+    uint8_t get_stored_chip_id();
     bool write_reg(uint8_t reg, uint8_t val);
     bool mode_select(uint8_t mode);
     bool read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val);
@@ -72,10 +73,13 @@ private:
 		MEAS_MODE_CONTINUOUS = 1   /* Continuous measurements based on selected mode ODR settings*/
 	} _meas_mode{MEAS_MODE::MEAS_MODE_CONTINUOUS};
 
-	enum FORCED_MEAS_TRIGGER : uint8_t {
-		FORCE_MEAS_STANDBY = 0,			/* Stay in Stand by */
-		FORCE_MEAS_TRIGGER_FORCE_MEAS = 1	/* Trigger for forced measurements */
-	} _forced_meas_trigger{FORCED_MEAS_TRIGGER::FORCE_MEAS_STANDBY};
-};
+	    enum FORCED_MEAS_TRIGGER : uint8_t {
+			FORCE_MEAS_STANDBY = 0,			/* Stay in Stand by */
+			FORCE_MEAS_TRIGGER_FORCE_MEAS = 1	/* Trigger for forced measurements */
+		} _forced_meas_trigger{FORCED_MEAS_TRIGGER::FORCE_MEAS_STANDBY};
+	    
+	    // Member variable to store detected chip ID from dummy reads
+	    uint8_t _stored_chip_id{0xFF};
+	};
 
 #endif  // AP_BARO_ICP201XX_ENABLED 

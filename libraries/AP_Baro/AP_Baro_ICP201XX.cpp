@@ -29,10 +29,15 @@
 #include <AP_Logger/AP_Logger.h>
 
 #include <AP_InertialSensor/AP_InertialSensor_Invensense_registers.h>
+#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL &hal;
 
 #define ICP201XX_ID             0x63
+
+// SPI commands for ICP201XX
+#define ICP201XX_SPI_CMD_WRITE  0x33
+#define ICP201XX_SPI_CMD_READ   0x3C
 
 #define CONVERSION_INTERVAL     25000
 
@@ -77,32 +82,87 @@ AP_Baro_ICP201XX::AP_Baro_ICP201XX(AP_Baro &baro, AP_HAL::Device &_dev)
     : AP_Baro_Backend(baro)
     , dev(&_dev)
 {
+    // CRITICAL DEBUG MESSAGE - This should always appear
+    printf("=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===\n");
+    printf("=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - CONSTRUCTOR DEBUG TEST");
 }
+
+
 
 AP_Baro_Backend *AP_Baro_ICP201XX::probe(AP_Baro &baro, AP_HAL::Device &dev)
 {
+    // DEBUG: Wait for console to be ready
+    hal.scheduler->delay(1000);
+    
+    // DEBUG: Very early debug output
+    printf("=== ICP201XX: PROBE FUNCTION STARTING ===\n");
+    printf("=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===\n");
+    printf("ICP201XX: probe() ENTRY - bus %u addr 0x%02x\n", 
+           dev.bus_num(), dev.get_bus_address());
+    printf("=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - PROBE DEBUG TEST");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: probe ENTRY");
+    
     AP_Baro_ICP201XX *sensor = NEW_NOTHROW AP_Baro_ICP201XX(baro, dev);
-    if (!sensor || !sensor->init()) {
+    if (!sensor) {
+        printf("ICP201XX: MEMORY ALLOCATION FAILED\n");
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: MEMORY FAILED");
+        return nullptr;
+    }
+    
+    printf("=== ICP201XX: SENSOR OBJECT CREATED ===\n");
+    printf("=== ICP201XX: THIS IS ANOTHER HELLO TEST ===\n");
+    printf("ICP201XX: sensor created, calling init()\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - SENSOR CREATED");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: calling init");
+    
+    bool init_result = sensor->init();
+    printf("ICP201XX: init() returned %s\n", init_result ? "SUCCESS" : "FAILED");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: init result=%s", init_result ? "SUCCESS" : "FAILED");
+    
+    if (!init_result) {
+        printf("ICP201XX: PROBE FAILED - init returned false\n");
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: PROBE FAILED");
         delete sensor;
         return nullptr;
     }
+    
+    printf("ICP201XX: PROBE SUCCESS!\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: PROBE SUCCESS");
     return sensor;
 }
 
 bool AP_Baro_ICP201XX::init()
 {
+    // DEBUG: Send hello message to verify debug interface
+    hal.console->printf("ICP201XX: HELLO - Debug message test\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: HELLO - Debug message test");
+    
     if (!dev) {
         return false;
     }
 
     dev->get_semaphore()->take_blocking();
 
+    // Wait for sensor to be ready - matching Betaflight delay
+    hal.scheduler->delay(100);
+
     uint8_t id = 0xFF;
     uint8_t ver = 0xFF;
-    read_reg(REG_DEVICE_ID, &id);
-    read_reg(REG_DEVICE_ID, &id);
+    
+    // Try reading chip ID multiple times
+    for (int i = 0; i < 3; i++) {
+        if (read_reg(REG_DEVICE_ID, &id)) {
+            hal.scheduler->delay(1);
+            break;
+        }
+        hal.scheduler->delay(1);
+    }
+    
     read_reg(REG_VERSION, &ver);
 
+    // ONLY accept the correct chip ID (0x63) - no exceptions!
     if (id != ICP201XX_ID) {
         goto failed;
     }
@@ -145,17 +205,51 @@ bool AP_Baro_ICP201XX::init()
 
 void AP_Baro_ICP201XX::dummy_reg()
 {
-    do {
+    // Perform dummy read from EMPTY register as required by ICP201XX protocol
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: need to send read command for EMPTY register
+        uint8_t tx_buf[3] = { ICP201XX_SPI_CMD_READ, REG_EMPTY, 0xFF };
+        uint8_t rx_buf[3];
+        dev->transfer(tx_buf, 3, rx_buf, 3);
+    } else {
+        // I2C mode: standard transfer
         uint8_t reg = REG_EMPTY;
         uint8_t val = 0;
         dev->transfer(&reg, 1, &val, 1);
-    } while (0);
+    }
 }
 
 bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *buf, uint8_t len)
 {
     bool ret;
-    ret = dev->transfer(&reg, 1, buf, len);
+    
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: Use Betaflight-compatible command structure
+        // Command byte combines read operation and register address
+        uint8_t cmd;
+        if (len == 1) {
+            cmd = 0x3C | (reg & 0x3F);  // Read command for single byte
+        } else {
+            cmd = 0x3D | (reg & 0x3F);  // Read command for multiple bytes
+        }
+        
+        uint8_t tx_buf[32];
+        uint8_t rx_buf[32];
+        
+        tx_buf[0] = cmd;           // Command with register address
+        memset(&tx_buf[1], 0xFF, len);  // Dummy bytes to clock in data
+        
+        ret = dev->transfer(tx_buf, len + 1, rx_buf, len + 1);
+        
+        if (ret) {
+            memcpy(buf, &rx_buf[1], len);  // Data starts after command response
+        }
+    } else {
+        // I2C mode: standard transfer
+        ret = dev->transfer(&reg, 1, buf, len);
+    }
+    
+    // Perform dummy read after register access (except for EMPTY register)
     dummy_reg();
     return ret;
 }
@@ -168,8 +262,20 @@ bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *val)
 bool AP_Baro_ICP201XX::write_reg(uint8_t reg, uint8_t val)
 {
     bool ret;
-    uint8_t data[2] = { reg, val };
-    ret = dev->transfer(data, sizeof(data), nullptr, 0);
+    
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: Use Betaflight-compatible command structure
+        // Command byte combines write operation and register address
+        uint8_t tx_buf[2];
+        tx_buf[0] = 0x33 | (reg & 0x3F);  // Write command with register address
+        tx_buf[1] = val;
+        ret = dev->transfer(tx_buf, 2, nullptr, 0);
+    } else {
+        // I2C mode: standard transfer
+        uint8_t data[2] = { reg, val };
+        ret = dev->transfer(data, sizeof(data), nullptr, 0);
+    }
+    
     dummy_reg();
     return ret;
 }
