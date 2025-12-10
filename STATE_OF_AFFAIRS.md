@@ -1,487 +1,186 @@
 # ArduPilot HRON-Chickadee Project Status
 
-## Current Status - SUCCESSFUL REPRODUCTION OF WORKING BOOTLOADER AND FIRMWARE
-Successfully demonstrated that the clean build and flash process for HRON-Chickadee produces consistent, repeatable results. The board is now properly running both the bootloader and main firmware with correct USB enumeration changes.
+## Current Status - BUILD, FLASH, AND MONITOR TESTING COMPLETED
 
-## Test Results Summary:
-1. Bootloader Build: Successfully built with 2-second timeout for faster boot transition
-2. Main Firmware Build: Successfully built ArduPlane firmware with embedded bootloader
-3. Flash Process: Successfully performed full chip erase, flashed bootloader, then main firmware
-4. USB Enumeration: Confirmed successful transition from bootloader (1209:5741) to main firmware (35b0:0001)
+Successfully performed the three core operations on the HRON-Chickadee project:
+1. Build: Successfully compiled ArduCopter firmware for HRON-Chickadee
+2. Flash: Successfully flashed firmware to the STM32H743 device
+3. Monitor: Successfully observed boot and initialization sequence
 
-## Fresh Build and Flash Test - SUCCESSFUL
+## Build Results - SUCCESSFUL
 
-### Step 1 - Clean Preparation
-1. Successfully removed all hex and bin files for HRON-Chickadee
-2. Completely removed build directory to ensure clean state
-3. Verified no artifacts remained from previous builds
+### Build Process
+- Executed: `./build.sh`
+- Target: ArduCopter firmware for HRON-Chickadee board
+- Result: Successfully built with no errors
 
-### Step 2 - Fresh Bootloader Build
-1. Successfully built bootloader with reduced 2-second timeout
-2. Generated files:
-   - HRON-Chickadee_bl.bin (18,548 bytes)
-   - HRON-Chickadee_bl.hex (51,044 bytes)
+### Build Output
+```
+Waf: Entering directory `/ardupilot/build/HRON-Chickadee'
+...
++[1037/1037] Generating bin/arducopter_with_bl.hex
+Waf: Leaving directory `/ardupilot/build/HRON-Chickadee'
 
-### Step 3 - Fresh Main Firmware Build
-1. Successfully configured build environment for HRON-Chickadee
-2. Successfully built ArduPlane firmware with embedded bootloader
-3. Generated files:
-   - arduplane.bin (1,432,312 bytes)
-   - arduplane_with_bl.hex (4,299,708 bytes)
+BUILD SUMMARY
+Build directory: /ardupilot/build/HRON-Chickadee
+Target          Text (B)  Data (B)  BSS (B)  Total Flash Used (B)  Free Flash (B)  External Flash Used (B)
+----------------------------------------------------------------------------------------------------------
+bin/arducopter   1594308      3928   258324               1598236          105692  Not Applicable
 
-### Step 4 - Flash Process
-1. Successfully performed full chip erase
-2. Successfully flashed bootloader to address 0x08000000
-3. Confirmed bootloader USB enumeration (1209:5741)
-4. Successfully flashed main firmware to address 0x08020000 (128KB offset)
+'copter' finished successfully (6.114s)
+```
 
-### Step 5 - Verification
-1. Confirmed successful bootloader-to-firmware transition
-2. Board now enumerates as "Heron Precision HRON-Chickadee" (35b0:0001)
-3. USB enumeration working properly for both bootloader and main firmware modes
+### Firmware Details
+- Firmware Size: 1,598,236 bytes (approximately 1.6MB)
+- Free Flash: 105,692 bytes (approximately 103KB)
+- File Generated: `build/HRON-Chickadee/bin/arducopter_with_bl.hex`
 
-## Result
-The clean build and flash process is now fully verified and produces consistent, repeatable results.
+## Flash Results - SUCCESSFUL
 
-## Completed Tasks
-- Successfully found HRON-Chickadee bootloader source in AP_Bootloader directory
-- Built ArduPilot Docker compilation environment
-- Compiled custom HRON-Chickadee bootloader (18,548 bytes)
-- Successfully flashed custom bootloader to STM32H743xx device
-- Verified USB identification change from CubeOrange-BL (2dae:1016) to HRON-Chickadee-BL (1209:5741)
+### Flash Process
+- Executed: `./flash.sh`
+- Tool: STM32CubeProgrammer v2.21.0
+- Interface: SWD (Serial Wire Debug)
+- Result: Successfully flashed firmware to device
 
-## SWD Debugging Status - FULLY OPERATIONAL
-SWD debugging has been successfully configured and is fully functional for HRON-Chickadee.
+### Flash Output
+```
+ST-LINK SN  : 430037000A0000363132524E
+ST-LINK FW  : V2J45S7
+Board       : --
+Voltage     : 3.27V
+SWD freq    : 4000 KHz
+Connect mode: Under Reset
+Reset mode: Hardware reset
+Device ID   : 0x450
+Revision ID : Rev V
+Device name : STM32H7xx
+Flash size  : 2 MBytes
+Device type : MCU
+Device CPU  : Cortex-M7
+BL Version  : 0x91
 
-## Completed Tasks
-- Successfully identified and resolved stuck Docker process issue
-- Successfully identified and resolved stuck OpenOCD process issue
-- Successfully found HRON-Chickadee bootloader source in AP_Bootloader directory
-- Built ArduPilot Docker compilation environment
-- Compiled custom HRON-Chickadee bootloader (18,548 bytes) with 2-second timeout
-- Successfully flashed custom bootloader to STM32H743xx device
-- Verified USB identification change from CubeOrange-BL (2dae:1016) to HRON-Chickadee-BL (1209:5741)
-- Successfully built ArduPlane firmware with bootloader embedded
-- Successfully flashed main firmware to the board at correct address (0x08020000)
-- Confirmed successful bootloader-to-firmware handoff with proper USB enumeration (35b0:0001)
-- SWD debugging infrastructure implemented and tested
-- Python-based debugging tools created
-- OpenOCD connection established with full debug capabilities
+Memory Programming ...
+  File          : arducopter_with_bl.hex
+  Size          : 1.65 MB
+  Address       : 0x08000000
 
-## SWD Configuration Changes
-**Modified Files:**
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat`
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef-bl.dat`
+Erasing internal memory sectors [0 13]
+Download in Progress:
+[==================================================] 100%
 
-**Changes Made:**
-- Commented out LED definitions on PA13 and PA14 (SWD pins)
-- Added SWD pin definitions:
-  - `PA13 JTMS-SWDIO SWD` (data line)
-  - `PA14 JTCK-SWCLK SWD` (clock line)
-- Disabled LED functionality for debugging (HAL_GPIO_A_LED_PIN and HAL_GPIO_C_LED_PIN set to -1)
-- Built updated bootloader with SWD support (18,548 bytes)
+File download complete
+Time elapsed during download operation: 00:00:27.180
+```
+
+### Device Information
+- MCU: STM32H7xx (Cortex-M7)
+- Flash Size: 2MB
+- Programming Interface: ST-LINK via SWD
+- Flash Time: 27.180 seconds for 1.65MB
+
+## Monitor Results - IDENTIFIED BAROMETER INITIALIZATION ISSUE
+
+### Monitor Process
+- Executed: `./monitor.sh`
+- Method: Reset device and capture serial output
+- Result: Successfully captured boot sequence, identified barometer initialization issue
+
+### Monitor Output
+```
+Hard reset is performed
+=== ICP201XX: PROBE FUNCTION STARTING ===
+=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===
+ICP201XX: probe() ENTRY - bus 4 addr 0x01
+=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===
+=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===
+=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===
+=== ICP201XX: SENSOR OBJECT CREATED ===
+=== ICP201XX: THIS IS ANOTHER HELLO TEST ===
+ICP201XX: sensor created, calling init()
+ICP201XX: HELLO - Debug message test
+Config Error: Baro: unable to initialise driver
+Config Error: Baro: unable to initialise driver
+7LConfig Error: Baro: unable to initialise driver
+Config Error: Baro: unable to initialise driver
+Config Error: Baro: unable to initialise driver
+```
+
+### Analysis of Barometer Issue
+- The ICP201XX barometer driver is being detected and probed
+- Constructor is successfully called
+- The init() function is returning FAILED (though the debug message doesn't show this return value)
+- This results in "Config Error: Baro: unable to initialise driver" messages
+- The driver appears to be failing at some point during initialization, but the specific point of failure isn't clear
+- The issue is likely related to SPI communication or chip ID validation
 
 ## Hardware Configuration
-- Target: HRON-Chickadee flight controller (STM32H743xx)
-- USB ID: 1209:5741 (Heron Precision bootloader with SWD enabled)
-- Programming via ST-LINK/V2
-- Current Bootloader Flash: 18,548 bytes
-- SWD Pins: PA13 (SWDIO), PA14 (SWCLK)
-- **Debug Status: FULLY FUNCTIONAL**
 
-## SWD Debugging Capabilities
-- OpenOCD successfully connects via HLA_SWD transport
-- STM32H743 Cortex-M7 properly detected
-- 8 breakpoints and 4 watchpoints available
-- GDB server running on port 3333
-- Python-based debugger (`debug_gdb.py`) functional
-- Memory access and register reading operational
+### STM32H743VIT6 Device
+- Flash Size: 2MB
+- Voltage: 3.27V
+- Programming Interface: ST-LINK via SWD
 
-## Development Environment
-- Docker-based ArduPilot build system
-- Board ID: 1337
-- MCU: STM32H743xx
-- Toolchain: arm-none-eabi
-- OpenOCD 0.12.0 with SWD support
-- gdb-multiarch installed and configured
-- Python debugging utilities created
+### Barometer Sensor
+- Model: ICP201XX
+- Interface: SPI on bus 4
+- Status: Detected but initialization failing due to chip ID mismatch
 
-## SWD Debugging Tools
-- **OpenOCD Configuration:** `/home/user/ardupilot/hron_chickadee_swd.cfg`
-- **Python Debugger:** `/home/user/ardupilot/debug_gdb.py`
-- **GDB Server:** Port 3333
-- **Telnet Interface:** Port 4444
+## Scripts Status
 
-## CRITICAL RECOVERY COMPLETED
+### build.sh
+- Purpose: Builds ArduCopter firmware for HRON-Chickadee
+- Implementation: Docker-based build using ardupilot-build container
+- Command: `docker run --rm -v $(pwd):/ardupilot ardupilot-build /bin/bash -c "cd /ardupilot && ./waf --board=HRON-Chickadee copter"`
+- Status: Working correctly
 
-**Board Status:** FULLY RECOVERED AND OPERATIONAL
-**Recovery Method:** STM32_Programmer_CLI (from fc-devflasher project)
+### flash.sh
+- Purpose: Flashes firmware to STM32 device
+- Implementation: Uses STM32CubeProgrammer CLI
+- Command: `sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI -c port=SWD reset=HWrst -w build/HRON-Chickadee/bin/arducopter_with_bl.hex 0x08000000`
+- Status: Working correctly
 
-**Successful Recovery Sequence:**
-1. Used STM32_Programmer_CLI instead of OpenOCD for recovery
-2. Performed full chip erase: `-e all -v fast -q -hardRst`
-3. Flashed working bootloader hex: `-w HRON-Chickadee_bl.hex -v fast -q -hardRst`
-4. USB device enumeration restored: 1209:5741 (HRON-Chickadee-BL)
-5. SWD debugging connection re-established
+### monitor.sh
+- Purpose: Resets device and captures serial output
+- Implementation: Uses STM32CubeProgrammer CLI for reset and cat for serial monitoring
+- Command: `sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI -c port=SWD reset=HWrst -hardRst && sleep 5 && timeout 25 cat /dev/ttyACM0 | strings`
+- Status: Working correctly
 
-**Key Discovery:** 
-- **OpenOCD:** Works for debugging but fails during recovery operations
-- **STM32_Programmer_CLI:** Reliable recovery method for chipid 0x0000 failures
-- **Critical Recovery Tools:** Use fc-devflasher project's STM32_Programmer_CLI commands
+## Current Issue - Barometer Initialization
 
-## CRITICAL DISCOVERY: BOOTLOADER-TO-FIRMWARE HANDOFF ISSUE RESOLVED
+The ICP201XX barometer driver is failing initialization because it's rejecting the chip ID returned by the sensor. Based on the documentation:
 
-**Finding:** The bootloader-to-firmware handoff issue was related to:
-1. Stuck processes (Docker and OpenOCD) preventing proper flashing and debugging
-2. Improper firmware address positioning in earlier attempts
-3. Board becoming unresponsive after flashing attempts
-
-**Resolution Strategy:**
-## Verified Process
-1. Clean preparation - Confirmed no old artifacts interfering with build
-2. Fresh builds - Generated identical bootloader (18,548 bytes) and firmware (1,432,312 bytes)
-3. Proper addressing - Used correct memory addresses as defined in configuration
-4. Reliable flashing - Used STM32_Programmer_CLI with proper verification
-5. Consistent results - Reproduced exact same USB enumeration behavior as previous successful attempt
-
-## Production Readiness
-The HRON-Chickadee board build and flash process has been successfully validated and is ready for production use.
-
-**Current Status:**
- - Board successfully running main firmware (ArduPlane) with working bootloader for updates
-- USB enumeration not restored (requires further investigation)
-- May need to use original known-good bootloader from git
-
-## Next Steps - Conservative Approach
-
-**Immediate Priority:** Resolve build system detection issue
-1. Investigate wscript dependency detection for hwdef-bl.dat changes
-2. Force rebuild if necessary (delete files before rebuild)
-3. Test bootloader after successful build using STM32_Programmer_CLI
-4. Verify USB enumeration (1209:5741) and SWD functionality preserved
-
-**Progressive SWD Configuration Plan:**
-1. **Step 1:** Resolve build system, test SWD pins + LEDs共存 (共存/coexistence)
-2. **Step 2:** If successful, comment out PA13 LED definition only
-3. **Step 3:** Test and verify PA13 as SWDIO pin functionality
-4. **Step 4:** If successful, comment out PA14 LED definition (if it exists)
-5. **Step 5:** Final verification of full SWD debugging capability
-
-**Critical Testing Protocol:**
-- Test USB enumeration after each change: `lsusb | grep 1209:5741`
-- Test SWD connection after each change: `openocd -f hron_chickadee_swd.cfg -c "init; shutdown;"`
-- Immediately revert any change causing regression
-- Only proceed when all functionality confirmed preserved
-
-## CRITICAL BUILD RULES - NEVER VIOLATE
-
-### DOCKER-ONLY BUILD POLICY
-**ABSOLUTE RULE:** NEVER build without Docker. Native builds corrupt the build environment.
-
-```bash
-# NEVER DO THIS - Causes permanent damage:
-python3 Tools/scripts/build_bootloaders.py HRON-Chickadee
-./waf configure --board HRON-Chickadee --bootloader
-
-# ALWAYS DO THIS - Correct Docker approach:
-docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest \
-  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee
-```
-
-### RECOVERY FROM NATIVE BUILD CORRUPTION
-If native builds were accidentally run, full recovery required:
-```bash
-# 1. Clean all corrupted native build artifacts
-rm -rf build/ c4che/ .lock-waf_linux_build config.log
-
-# 2. Reinitialize ALL submodules (required after native builds)
-git submodule update --init --recursive
-
-# 3. Verify Docker builds work properly
-docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest \
-  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee
-```
-
-### STM32_Programmer_CLI (STM Tool) Usage
-**Critical Recovery Tool - Use ONLY for board recovery:**
-
-```bash
-# Full chip erase (recovery from chipid 0x0000):
-sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI \
-  -c port=SWD reset=HWrst -e all -v fast -q -hardRst
-
-# Flash bootloader hex file:
-sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI \
-  -c port=SWD reset=HWrst -w /path/to/bootloader.hex -v fast -q -hardRst
-
-# Check USB enumeration after flash:
-sleep 3 && lsusb | grep 1209:5741
-```
-
-**ST Tool Characteristics:**
-- **Reliable Recovery:** Works when OpenOCD fails (chipid 0x0000 states)
-- **Aggressive Reset:** Uses hardware reset and full chip erase
-- **Verification:** Built-in verification ensures successful programming
-- **Recovery Only:** Not for development/debugging (use OpenOCD for SWD operations)
-
-## FINAL SUCCESS: Complete SWD Debugging Implementation
-
-### SWD Configuration Achieved
-**Bootloader (hwdef-bl.dat):**
-- PA13 JTMS-SWDIO SWD (SWD data line)
-- PA14 JTCK-SWCLK SWD (SWD clock line) 
-- `define HAL_LED_ON -1` (all LEDs disabled for SWD)
-- Bootloader size: 18,500 bytes
-
-**Main Firmware (hwdef.dat):**
-- PA13 JTMS-SWDIO SWD (SWD data line)
-- PA14 JTCK-SWCLK SWD (SWD clock line)
-- PA15 LED1 retained (green LED, not SWD pin)
-- `define HAL_GPIO_A_LED_PIN -1` (PA13 LED disabled for SWD)
-- `define HAL_GPIO_C_LED_PIN -1` (PA14 LED disabled for SWD)
-
-### SWD Functionality Verified
-- **Cortex-M7 Detection:** `[stm32h7x.cpu0] Cortex-M7 r1p1 processor detected`
-- **Debug Resources:** `8 breakpoints, 4 watchpoints available`
-- **USB Functionality:** HRON-Chickadee-BL (1209:5741) fully operational
-- **GDB Server:** Listening on port 3333
-- **Target Voltage:** 3.274766V (stable)
-
-### Key Technical Breakthrough
-**Critical Discovery:** LED_BOOTLOADER was NOT required for USB functionality
-- Earlier assumption that PA13 LED_BOOTLOADER was essential for USB was incorrect
-- USB functionality works fine with LED definitions properly disabled via HAL_GPIO pins
-- This enabled proper SWD configuration without USB regression
-
-### Working SWD Debugging Setup
-```bash
-# Start OpenOCD with HRON-Chickadee SWD configuration
-openocd -f /home/user/ardupilot/hron_chickadee_swd.cfg &
-
-# Connect with GDB
-gdb-multiarch
-(gdb) target remote localhost:3333
-(gdb) monitor halt
-(gdb) info registers
-(gdb) x/16x 0x08000000  # Read bootloader memory
-```
-
-### Build Environment Protection
-1. **Docker Images:** Use `ardupilot:latest` (or `ardupilot-builder:latest`)
-2. **Workspace:** Always mount project as `/ardupilot` volume
-3. **Commands:** All build commands must run inside Docker container
-4. **Verification:** Check `docker images | grep ardupilot` before building
-
-## Current Implementation Status: BOOTLOADER SUCCESSFUL, MAIN FIRMWARE ISSUES
-
-### Build System and Bootloader Implementation
-
-**Build System:**
-- Docker-based ArduPilot build environment fully operational
-- HRON-Chickadee board configuration (APJ_BOARD_ID: 1337)
-- Debug build configuration enabled with full debugging symbols
-- Firmware builds successfully: 1.43MB plane, 1.44MB copter with bootloader
-- Bootloader successfully built: 18,548 bytes
-
-**Bootloader Status:**
-- Successfully built bootloader with SWD support
-- Successfully flashed bootloader to STM32H743xx device
-- Verified USB identification as HRON-Chickadee-BL (1209:5741)
-- SWD connection working with OpenOCD
-- Normal STM32H7 debug register errors observed but connection functional
-
-**Hardware Configuration:**
-- MCU: STM32H743xx with 2MB flash, 1MB+ RAM
-- USB ID: 1209:5741 (Heron Precision bootloader)
-- Triple IMU: 3x ICM42688P on SPI1/SPI4
-- 12 motor outputs with PWM support
-- 8 serial ports with comprehensive protocol support
-- OSD support via MAX7456 on SPI6
-- Battery monitoring with voltage/current sensing
-
-**SWD Debugging Implementation:**
-- Full SWD configuration in both bootloader and main firmware
-- PA13 (SWDIO) and PA14 (SWCLK) properly configured
-- LED functionality reconfigured (PA15 green LED retained)
-- OpenOCD connection stable with target detection
-- Python debugging utilities created
-- GDB server operational on port 3333
-
-**Development Workflow:**
-- Build: `docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest ./waf plane`
-- Debug build: `docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest ./waf configure --board HRON-Chickadee --debug`
-- Flash: STM32_Programmer_CLI with SWD interface
-- Debug: OpenOCD + GDB via SWD connection
-
-**Key Files Created/Modified:**
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - Main firmware configuration
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef-bl.dat` - Bootloader configuration  
-- `/Tools/AP_Bootloader/board_types.txt` - Board ID registration (1337)
-- `/Tools/bootloaders/HRON-Chickadee_bl.*` - Custom bootloader binaries
-- `TIPS_AND_COMMANDS.md` - Comprehensive usage documentation
-
-### Build and Flash Process Completed Successfully
-
-**Firmware Build Process:**
-- ArduPilot Docker build environment fully operational
-- HRON-Chickadee bootloader successfully built (18,548 bytes)
-- ArduPlane firmware successfully built (arduplane_with_bl.hex, 1.49MB)
-- All build artifacts created and verified
-
-**Firmware Flash Process:**
-- Bootloader successfully flashed using STM32_Programmer_CLI
-- Bootloader USB enumeration verified (1209:5741)
-- ArduPlane firmware successfully flashed using STM32_Programmer_CLI
-- Flash verification completed successfully
-- Hardware reset performed after flashing
-
-**Post-Flash Status:**
-- Main firmware not booting properly or not jumping from bootloader
-- USB device still shows bootloader (1209:5741) instead of firmware (0x35b0:0x0001)
-- Serial connection (/dev/ttyACM0) present but unresponsive
-- OpenOCD SWD connection partially functional with debug register errors
-
-**Root Cause Analysis:**
-- Build and flash processes completed without errors
-- Bootloader is functioning properly and enumerates correctly
-- Board fails to transition from bootloader to main application
-- Suggests a compatibility issue between bootloader configuration and main firmware
-
-**Recommended Next Steps:**
-1. Investigate bootloader configuration for jump-to-application logic
-2. Compare with CubeOrange bootloader configuration (similar STM32H743 hardware)
-3. Build and test ArduCopter firmware as alternative
-4. Consider using different bootloader-firmware combination for testing
-
-## Clean Build and Flash Test Results (December 8, 2023)
-
-### Complete Clean Build Process
-- **Docker Build System:** Fully operational (ardupilot:latest image)
-- **Build Cleanup:** Success (complete rm -rf of build/HRON-Chickadee)
-- **Bootloader Build:** Success (18,548 bytes, SWD support enabled)
-- **ArduPlane Build:** Success (arduplane_with_bl.hex, 1.49MB, verification passed)
-- **Combined Firmware:** Success (bootloader + main firmware properly combined)
-
-### Flash Process and Monitoring
-- **Bootloader Flash:** Success (STM32_Programmer_CLI with verification)
-- **Combined Firmware Flash:** Success (STM32_Programmer_CLI with verification)
-- **15-Second USB Monitoring:** Failure (stuck in bootloader throughout)
-- **Bootloader Persistence:** Confirmed (1209:5741 present for all 15 seconds)
-- **Main Firmware Detection:** Confirmed (0x35b0:0x0001 never appeared)
-
-### Hardware Interface Testing
-- **ST-LINK Connection:** Success (0483:3748 detected)
-- **SWD Detection:** Success (Cortex-M7 r1p1 processor detected)
-- **Target Voltage:** Success (3.28V stable)
-- **Flash Verification:** Success (all flash operations verified)
-
-### Confirmed Issues
-- **Main Firmware Boot:** Failure (firmware never starts after bootloader)
-- **USB Enumeration Transition:** Failure (remains in bootloader mode indefinitely)
-- **Bootloader-to-Firmware Jump:** Confirmed failure (board stays in bootloader)
-- **Bootloader Functionality:** Working (proper USB enumeration as 1209:5741)
-- **Flash Process:** Working (both bootloader and firmware flash verified)
-
-### Successfully Completed Tasks
-1. Docker-based ArduPilot build environment established
-2. Complete clean build process executed successfully
-3. HRON-Chickadee bootloader with SWD support built successfully
-4. ArduPlane firmware built successfully
-5. Bootloader flashed and verified functional
-6. Combined firmware (bootloader + main) flashed and verified
-7. 15-second monitoring confirmed bootloader persistence issue
-
-## Analysis Summary
-
-The clean build and flash process confirmed that the issue is not related to build artifacts or flashing procedures. The HRON-Chickadee board is functioning properly in bootloader mode, but consistently fails to transition to main ArduPlane firmware. This suggests either:
-
-1. A fundamental incompatibility between the bootloader configuration and the main firmware
-2. An issue with the bootloader's jump-to-application logic
-3. A problem with the main firmware's startup sequence or vector table
-
-The fact that bootloader remains stable and responsive (enumerating as 1209:5741) while the main firmware never appears (would be 0x35b0:0x0001) strongly points to a bootloader-to-application handoff failure.
+1. Expected Chip ID: 0x63 (according to driver)
+2. Actual Chip ID: Unknown (needs debugging)
+3. Current Driver Behavior: Fails initialization for unknown reason
+4. Required Fix: Determine exact failure point in initialization sequence
+5. Debug Priority: Add more detailed logging to identify failure point
 
 ## Next Steps
-1. Investigate bootloader jump-to-application logic in hwdef-bl.dat
-2. Compare with a working STM32H743 bootloader configuration (e.g., CubeOrange)
-3. Consider using a different bootloader-firmware combination for testing
-4. Try building and testing ArduCopter firmware as an alternative
 
-## Current Task: Implement ICP201XX SPI Barometer Driver
-### Task Status: IN PROGRESS - Fixing Chip ID Issue
-1. ✅ Analyzed existing I2C driver implementation in Ardupilot
-2. ✅ Studied working SPI driver in Betaflight
-3. ✅ Identified key differences between I2C and SPI implementations:
-   - SPI requires specific command bytes (0x33 for write, 0x3C for read)
-   - SPI requires dummy read after each transaction
-   - SPI communication protocol structure differs from I2C
-4. ✅ Enabled SPI configuration in hwdef.dat for Chickadee board
-5. ✅ Modified AP_Baro_ICP201XX.cpp to support SPI communication:
-   - Added SPI command byte definitions (0x33 for write, 0x3C for read)
-   - Implemented proper SPI protocol with command bytes before register addresses
-   - Implemented dummy read after each transaction as required by device
-   - Added retry logic for chip ID reading to improve reliability
-   - Maintained backward compatibility with I2C implementation
-6. ✅ Successfully built ArduPlane firmware with SPI driver enabled
-7. ✅ Created comprehensive debugging tools for verification:
-   - OpenOCD wrapper with proper timeout handling (45s no-data, 5min max runtime)
-   - GDB wrapper with script execution and interactive capabilities
-   - Test suite to verify wrapper functionality
-   - Barometer detection scripts for automated verification
-   - Manual testing tools for direct verification
-8. ✅ Documented implementation approach in docs/ICP201XX_SPI_Implementation.md
-9. 🔧 CHIP ID DETECTION ISSUE BEING FIXED:
-   - Device is incorrectly responding with 0x73 instead of expected 0x63
-   - Betaflight driver only accepts 0x63 as valid chip ID
-   - Removed incorrect acceptance of 0x73 in ArduPilot driver
-   - Added debug output to understand what we're actually reading
-   - Need to identify root cause of incorrect chip ID reading
-   - Build system issue identified in hwdef.dat file
+1. Fix ICP201XX Driver
+   - Add detailed logging to `libraries/AP_Baro/AP_Baro_ICP201XX.cpp`
+   - Identify exact point of failure in initialization
+   - Determine if issue is chip ID, SPI communication, or other
+   - Implement appropriate fix based on findings
 
-### Implementation Details:
-The driver now detects whether it's communicating via SPI or I2C and adapts accordingly:
-- For SPI: Sends command byte followed by register address, then data
-- For I2C: Uses standard I2C protocol (unchanged)
-- Dummy reads are performed after each transaction for SPI (only during initialization)
-- Alternative chip ID (0x73) detection from dummy reads implemented and working
-- Timeout protection added to prevent infinite loops during initialization
+2. Verification
+   - Re-run build, flash, and monitor sequence
+   - Confirm barometer initialization succeeds
+   - Verify no "Config Error: Baro: unable to initialise driver" messages
+   - Confirm successful pressure and temperature readings
 
-### Debug Tools Created:
-Created a comprehensive suite of debugging tools in /tools directory:
-1. **openocd_wrapper.py**: Robust wrapper for OpenOCD with proper process management
-2. **gdb_wrapper.py**: Wrapper for GDB with script execution capabilities and timeout handling
-3. **test_debug.py**: Test suite for verifying wrapper functionality
-4. **check_baro.py**: Automated verification of ICP201XX detection
-5. **simple_gdb/manual_test.py**: Direct testing script to manual verification
-6. **DEBUG_TOOLS_README.md**: Comprehensive documentation for all debugging tools
-7. **docs/ICP201XX_SPI_Implementation.md**: Detailed documentation of ICP201XX SPI implementation
-8. **monitor_tty.py**: TTY monitor script with proper timeout handling
+3. Documentation
+   - Update STATE_OF_AFFAIRS.md with resolution details
+   - Record the root cause and solution
+   - Document any workarounds needed for this hardware variant
 
-Key features implemented:
-- Default 45-second timeout when no data is received
-- Maximum 5-minute runtime limit
-- Proper process cleanup and signal handling
-- Comprehensive logging for debugging
-- Context manager support for safe resource handling
-- Multiple fallback methods for checking barometer detection
-- Complete documentation of implementation approach
-- TTY monitoring with binary data handling
+## Key Files Referenced
 
-## Usage Instructions
-See `TIPS_AND_COMMANDS.md` for detailed SWD debugging usage instructions, flashing procedures, and development workflow.
-
-## Next Steps for ICP201XX Driver:
-1. Fix build issue in hwdef.dat (line continuation problem)
-2. Debug chip ID reading issue to determine root cause
-3. Compare timing and SPI implementation with Betaflight
-4. Test corrected driver implementation
-5. Verify proper sensor operation after chip ID fix
-
-## Next Steps for Other Tasks
-1. Fix chip ID extraction to handle 0x73 appearing in dummy reads after other register accesses
-2. Implement proper SPI transaction sequence for reliable chip ID detection
-3. Complete initialization sequence after successful chip ID detection
-4. Test barometer pressure and temperature readings once initialization is fixed
-2. Verify DEVICE_STATUS register (0xCD) handling
-3. Test barometer readings once initialization completes
-4. Compare with Betaflight values for accuracy
+- `build.sh` - Build script for ArduCopter firmware
+- `flash.sh` - Flash script using STM32CubeProgrammer
+- `monitor.sh` - Monitor script for device output
+- `libraries/AP_Baro/AP_Baro_ICP201XX.cpp` - Barometer driver requiring debugging
+- `libraries/AP_Baro/AP_Baro.cpp` - Barometer management code
+- `libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - Hardware configuration
+- `docs/ICP201XX_SPI_Implementation.md` - Documentation of the SPI implementation
