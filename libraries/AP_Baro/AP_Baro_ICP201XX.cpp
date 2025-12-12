@@ -41,6 +41,10 @@ extern const AP_HAL::HAL &hal;
 
 #define CONVERSION_INTERVAL     25000
 
+// Hardware timing requirement for MODE_SELECT register (matching Betaflight)
+// This delay is UNCONDITIONAL and always applied after MODE_SELECT writes
+#define MODE_SELECT_LATCH_US    200
+
 #define REG_EMPTY               0x00
 #define REG_TRIM1_MSB           0x05
 #define REG_TRIM2_LSB           0x06
@@ -135,17 +139,13 @@ AP_Baro_Backend *AP_Baro_ICP201XX::probe(AP_Baro &baro, AP_HAL::Device &dev)
 
 bool AP_Baro_ICP201XX::init()
 {
-    // DEBUG: Send hello message to verify debug interface
-    hal.console->printf("ICP201XX: HELLO - Debug message test\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: HELLO - Debug message test");
-    
     if (!dev) {
         return false;
     }
 
     dev->get_semaphore()->take_blocking();
 
-    // Wait for sensor to be ready - matching Betaflight delay
+    // Wait for sensor to be ready - matching Betaflight startup delay
     hal.scheduler->delay(100);
 
     uint8_t id = 0xFF;
@@ -171,21 +171,27 @@ bool AP_Baro_ICP201XX::init()
     }
 
     if (ver != 0x00 && ver != 0xB2) {
+        hal.console->printf("ICP201XX: Invalid version 0x%02X\n", ver);
         goto failed;
     }
 
     hal.scheduler->delay(10);
 
+    // Boot sequence handles OTP calibration
+    if (!boot_sequence()) {
+        hal.console->printf("ICP201XX: Boot sequence failed\n");
+        goto failed;
+    }
+
+    // Soft reset before configuration
     soft_reset();
 
-    if (!boot_sequence()) {
-        goto failed;
-    }
-
     if (!configure()) {
+        hal.console->printf("ICP201XX: Configuration failed\n");
         goto failed;
     }
 
+    // Wait for FIR filter warmup and discard initial samples
     wait_read();
 
     dev->set_retries(0);
@@ -197,7 +203,10 @@ bool AP_Baro_ICP201XX::init()
 
     dev->get_semaphore()->give();
 
-    dev->register_periodic_callback(CONVERSION_INTERVAL/2, FUNCTOR_BIND_MEMBER(&AP_Baro_ICP201XX::timer, void));
+    // Register timer at 25ms interval (read every 25ms to collect ~3 samples at 120Hz)
+    dev->register_periodic_callback(25000, FUNCTOR_BIND_MEMBER(&AP_Baro_ICP201XX::timer, void));
+    
+    hal.console->printf("ICP201XX: Init successful\n");
     return true;
 
  failed:
@@ -244,14 +253,7 @@ bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *buf, uint8_t len)
             // Data appears starting at byte 2 (third byte of response)
             memcpy(buf, &spi_buf[2], len);
             
-            // Debug output for chip ID reads
-            if (reg == REG_DEVICE_ID) {
-                hal.console->printf("ICP201XX read_reg: reg=0x%02X len=%d tx=[0x%02X,0x%02X,0x%02X] rx=[0x%02X,0x%02X,0x%02X] data=0x%02X\n",
-                    reg, len, 
-                    ICP201XX_SPI_CMD_READ, reg, 0xFF,
-                    spi_buf[0], spi_buf[1], spi_buf[2],
-                    buf[0]);
-            }
+
         }
     } else {
         // I2C mode: standard transfer
@@ -292,34 +294,36 @@ bool AP_Baro_ICP201XX::write_reg(uint8_t reg, uint8_t val)
 
 void AP_Baro_ICP201XX::soft_reset()
 {
-    /* Stop the measurement */
-    mode_select(0x00);
-
-    hal.scheduler->delay(2);
-
-    /* Flush FIFO */
+    // Perform soft reset command
+    write_reg(REG_MODE_SELECT, 0x80); // Soft reset command
+    hal.scheduler->delay(50); // Reset delay matching Betaflight
+    
+    // Write standby mode
+    write_reg(REG_MODE_SELECT, 0x00);
+    hal.scheduler->delay(5);
+    
+    // Flush FIFO
     flush_fifo();
-
-    /* Mask all interrupts */
-    write_reg(REG_FIFO_CONFIG, 0x00);
-    write_reg(REG_INTERRUPT_MASK, 0xFF);
+    hal.scheduler->delay(5);
+    
+    // Clear any interrupt status
+    uint8_t int_status = 0;
+    if (read_reg(REG_INTERRUPT_STATUS, &int_status)) {
+        if (int_status != 0) {
+            write_reg(REG_INTERRUPT_STATUS, int_status); // Clear by writing back
+        }
+    }
 }
 
 bool AP_Baro_ICP201XX::mode_select(uint8_t mode)
 {
-    uint8_t mode_sync_status = 0;
-
-    do {
-        read_reg(REG_DEVICE_STATUS, &mode_sync_status, 1);
-
-        if (mode_sync_status & 0x01) {
-            break;
-        }
-
-        hal.scheduler->delay(1);
-    } while (1);
-
-    return write_reg(REG_MODE_SELECT, mode);
+    // Write mode and apply UNCONDITIONAL latch delay
+    bool ret = write_reg(REG_MODE_SELECT, mode);
+    
+    // CRITICAL: MODE_SELECT requires 200µs latch delay - ALWAYS apply this
+    hal.scheduler->delay_microseconds(MODE_SELECT_LATCH_US);
+    
+    return ret;
 }
 
 bool AP_Baro_ICP201XX::read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val)
@@ -405,53 +409,56 @@ bool AP_Baro_ICP201XX::boot_sequence()
     uint8_t offset = 0, gain = 0, Hfosc = 0;
     uint8_t version = 0;
     uint8_t bootup_status = 0;
-    int ret = 1;
 
-    /*  read version register */
+    // Read version register
     if (!read_reg(REG_VERSION, &version)) {
         return false;
     }
 
     if (version == 0xB2) {
-        /* B2 version Asic is detected. Boot up sequence is not required for B2 Asic, so returning */
+        // B2 version doesn't need boot sequence
+        hal.console->printf("ICP201XX: B2 version detected, skipping boot sequence\n");
         return true;
     }
 
-    /* Read boot up status and avoid re running boot up sequence if it is already done */
+    // Read boot up status and avoid re-running boot sequence if already done
     if (!read_reg(REG_OTP_MTP_OTP_STATUS2, &bootup_status)) {
         return false;
     }
 
     if (bootup_status & 0x01) {
-        /* Boot up sequence is already done, not required to repeat boot up sequence */
+        // Boot sequence already done
+        hal.console->printf("ICP201XX: Boot sequence already completed\n");
         return true;
     }
 
-    /* Bring the ASIC in power mode to activate the OTP power domain and get access to the main registers */
-    mode_select(0x04);
+    hal.console->printf("ICP201XX: Running boot sequence for non-B2 variant\n");
+
+    // Activate OTP power domain
+    if (!write_reg(REG_MODE_SELECT, 0x04)) return false;
     hal.scheduler->delay(4);
 
-    /* Unlock the main registers */
+    // Unlock master register
     write_reg(REG_MASTER_LOCK, 0x1F);
 
-    /* Enable the OTP and the write switch */
-    read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value);
+    // Enable OTP and write switch
+    if (!read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value)) return false;
     reg_value |= 0x03;
-    write_reg(REG_OTP_MTP_OTP_CFG1, reg_value);
+    if (!write_reg(REG_OTP_MTP_OTP_CFG1, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
 
-    /* Toggle the OTP reset pin */
-    read_reg(REG_OTP_DEBUG2, &reg_value);
-    reg_value |= 1 << 7;
-    write_reg(REG_OTP_DEBUG2, reg_value);
+    // Toggle OTP reset
+    if (!read_reg(REG_OTP_DEBUG2, &reg_value)) return false;
+    reg_value |= (1 << 7);
+    if (!write_reg(REG_OTP_DEBUG2, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
-
-    read_reg(REG_OTP_DEBUG2, &reg_value);
+    
+    if (!read_reg(REG_OTP_DEBUG2, &reg_value)) return false;
     reg_value &= ~(1 << 7);
-    write_reg(REG_OTP_DEBUG2, reg_value);
+    if (!write_reg(REG_OTP_DEBUG2, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
 
-    /* Program redundant read */
+    // Program redundant read registers
     write_reg(REG_OTP_MTP_MRA_LSB, 0x04);
     write_reg(REG_OTP_MTP_MRA_MSB, 0x04);
     write_reg(REG_OTP_MTP_MRB_LSB, 0x21);
@@ -459,105 +466,117 @@ bool AP_Baro_ICP201XX::boot_sequence()
     write_reg(REG_OTP_MTP_MR_LSB, 0x10);
     write_reg(REG_OTP_MTP_MR_MSB, 0x80);
 
-    /* Read the data from register */
-    ret &= read_otp_data(0xF8, 0x10, &offset);
-    ret &= read_otp_data(0xF9, 0x10, &gain);
-    ret &= read_otp_data(0xFA, 0x10, &Hfosc);
-    hal.scheduler->delay_microseconds(10);
+    // Read OTP calibration values
+    if (!read_otp_data(0xF8, 0x10, &offset)) return false;
+    if (!read_otp_data(0xF9, 0x10, &gain)) return false;
+    if (!read_otp_data(0xFA, 0x10, &Hfosc)) return false;
 
-    /* Write OTP values to main registers */
-    ret &= read_reg(REG_TRIM1_MSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x3F)) | (offset & 0x3F);
-        ret &= write_reg(REG_TRIM1_MSB, reg_value);
-    }
+    // Write OTP values to trim registers
+    if (!read_reg(REG_TRIM1_MSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x3F) | (offset & 0x3F);
+    if (!write_reg(REG_TRIM1_MSB, reg_value)) return false;
 
-    ret &= read_reg(REG_TRIM2_MSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x70)) | ((gain & 0x07) << 4);
-        ret &= write_reg(REG_TRIM2_MSB, reg_value);
-    }
+    if (!read_reg(REG_TRIM2_MSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x70) | ((gain & 0x07) << 4);
+    if (!write_reg(REG_TRIM2_MSB, reg_value)) return false;
 
-    ret &= read_reg(REG_TRIM2_LSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x7F)) | (Hfosc & 0x7F);
-        ret &= write_reg(REG_TRIM2_LSB, reg_value);
-    }
+    if (!read_reg(REG_TRIM2_LSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x7F) | (Hfosc & 0x7F);
+    if (!write_reg(REG_TRIM2_LSB, reg_value)) return false;
 
     hal.scheduler->delay_microseconds(10);
 
-    /* Update boot up status to 1 */
-    if (ret) {
-        ret &= read_reg(REG_OTP_MTP_OTP_STATUS2, &reg_value);
-        if (!ret) {
-            reg_value |= 0x01;
-            ret &= write_reg(REG_OTP_MTP_OTP_STATUS2, reg_value);
-        }
-    }
+    // Mark boot as complete
+    if (!read_reg(REG_OTP_MTP_OTP_STATUS2, &reg_value)) return false;
+    reg_value |= 0x01;
+    if (!write_reg(REG_OTP_MTP_OTP_STATUS2, reg_value)) return false;
 
-    /* Disable OTP and write switch */
-    read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value);
+    // Disable OTP and write switch
+    if (!read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value)) return false;
     reg_value &= ~0x03;
-    write_reg(REG_OTP_MTP_OTP_CFG1, reg_value);
+    if (!write_reg(REG_OTP_MTP_OTP_CFG1, reg_value)) return false;
 
-    /* Lock the main register */
-    write_reg(REG_MASTER_LOCK, 0x00);
+    // Lock master register
+    if (!write_reg(REG_MASTER_LOCK, 0x00)) return false;
 
-    /* Move to standby */
-    mode_select(0x00);
+    // Return to standby mode
+    if (!write_reg(REG_MODE_SELECT, 0x00)) return false;
+    hal.scheduler->delay(10);
 
-    return ret;
+    hal.console->printf("ICP201XX: Boot sequence completed successfully\n");
+    return true;
 }
 
 bool AP_Baro_ICP201XX::configure()
 {
-    uint8_t reg_value = 0;
+    // Configure using Read-Modify-Write for each field, matching Betaflight exactly
+    // This ensures proper sequencing and timing
+    
+    // Set forced meas trigger = 0 (standby)
+    uint8_t reg_value;
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 4)) | (0 << 4);
+    if (!mode_select(reg_value)) return false;
 
-    /* Initiate Triggered Operation: Stay in Standby mode */
-    reg_value |= (reg_value & (~0x10)) | ((uint8_t)_forced_meas_trigger << 4);
+    // Set power mode = 0 (normal)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 2)) | (0 << 2);
+    if (!mode_select(reg_value)) return false;
 
-    /* Power Mode Selection: Normal Mode */
-    reg_value |= (reg_value & (~0x04)) | ((uint8_t)_power_mode << 2);
+    // Set FIFO readout mode = 0 (pressure+temp interleaved)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~0x03) | 0;
+    if (!mode_select(reg_value)) return false;
 
-    /* FIFO Readout Mode Selection: Pressure first. */
-    reg_value |= (reg_value & (~0x03)) | ((uint8_t)(_fifo_readout_mode));
+    // Set operation mode = Mode 1 (bits 7-5 = 001 = 120Hz ODR)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~0xE0) | (1 << 5);  // Mode 1
+    if (!mode_select(reg_value)) return false;
 
-    /* Measurement Configuration: Mode2*/
-    reg_value |= (reg_value & (~0xE0)) | (((uint8_t)_op_mode) << 5);
+    // Finally, set measurement mode = 1 (continuous) - bit 3
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 3)) | (1 << 3);
+    if (!mode_select(reg_value)) return false;
 
-    /* Measurement Mode Selection: Continuous Measurements (duty cycled) */
-    reg_value |= (reg_value & (~0x08)) | ((uint8_t)_meas_mode << 3);
-
-    return mode_select(reg_value);
+    hal.scheduler->delay(10);
+    
+    hal.console->printf("ICP201XX: Configured for Mode 1 (120Hz ODR) continuous operation\n");
+    return true;
 }
 
 void AP_Baro_ICP201XX::wait_read()
 {
-    /*
-    * If FIR filter is enabled, it will cause a settling effect on the first 14 pressure values.
-    * Therefore the first 14 pressure output values are discarded.
-    **/
+    // Wait for FIR filter warmup. The first 14 samples after mode change are invalid.
+    // At 120Hz ODR (Mode 1), 14 samples = ~117ms
+    const uint8_t target_samples = 14;
+    uint8_t fifo_fill = 0;
     uint8_t fifo_packets = 0;
-    uint8_t fifo_packets_to_skip = 14;
 
-    do {
+    // Wait up to 1 second for FIFO to fill with warmup samples
+    for (int i = 0; i < 100; i++) {
         hal.scheduler->delay(10);
-        read_reg(REG_FIFO_FILL, &fifo_packets);
-        fifo_packets = (uint8_t)(fifo_packets & 0x1F);
-    } while (fifo_packets >= fifo_packets_to_skip);
+        if (read_reg(REG_FIFO_FILL, &fifo_fill)) {
+            fifo_packets = fifo_fill & 0x1F;
+            if (fifo_packets >= target_samples) {
+                break;
+            }
+        }
+    }
 
+    // Check if FIFO filled during warmup - if not, sensor may not be working
+    if (fifo_packets == 0) {
+        hal.console->printf("ICP201XX: Warning - No FIFO data during warmup\n");
+    } else {
+        hal.console->printf("ICP201XX: FIR warmup complete, flushing %d samples\n", fifo_packets);
+    }
+
+    // Flush warmup samples
     flush_fifo();
-    fifo_packets = 0;
-
-    do {
-        hal.scheduler->delay(10);
-        read_reg(REG_FIFO_FILL, &fifo_packets);
-        fifo_packets = (uint8_t)(fifo_packets & 0x1F);
-    } while (fifo_packets == 0);
 }
 
 bool AP_Baro_ICP201XX::flush_fifo()
 {
+    // Flush FIFO by setting the flush bit (0x80)
     uint8_t reg_value;
 
     if (!read_reg(REG_FIFO_FILL, &reg_value)) {

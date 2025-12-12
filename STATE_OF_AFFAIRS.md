@@ -1,72 +1,25 @@
 # ArduPilot HRON-Chickadee Project Status
 
-## Current Status - SPI TRANSFER METHOD IDENTIFIED AS ROOT CAUSE
+## Current Status - CHIP ID READ WORKING ✓
 
-Discovered fundamental issue with ArduPilot's SPI transfer implementation for ICP201XX chip ID reading.
+**BREAKTHROUGH: SPI full-duplex fix successful - chip ID reads 0x63 correctly on hardware**
 
-### Critical Finding - SPI Transfer API Mismatch
+### Verified Working
+- SPI Mode 3 (CPOL=1, CPHA=1) confirmed correct
+- Full-duplex SPI transactions using `transfer_fullduplex()` - WORKING
+- Chip ID read: **0x63** ✓ VERIFIED ON HARDWARE
+- SPI transaction structure: `[0x3C, 0x0C, 0xFF] -> [0xFF, 0xFF, 0x63]`
+- Data extraction from byte 2 (third byte) - CORRECT
 
-**Betaflight (WORKING):**
-- Sends: `[0x3C, 0x0C, 0xFF]` via full-duplex SPI
-- Receives: `[0xFF, 0xFF, 0x63]`
-- Extracts chip ID from byte 2: **0x63** ✓ CORRECT
+### The Fix
+Changed all SPI operations from `transfer(tx, len, rx, len)` to `transfer_fullduplex(buf, len)`:
+- `dummy_reg()`: Uses single buffer for 3-byte transaction
+- `read_reg()`: Uses single buffer, extracts data from `buf[2]`
+- `write_reg()`: Uses single buffer for [CMD, REG, VAL] transaction
 
-**ArduPilot (NOT WORKING):**
-- Calls: `dev->transfer(chip_id_tx, 3, chip_id_rx, 3)`
-- This creates a 6-byte transaction instead of 3-byte full-duplex
-- ArduPilot's transfer() combines TX and RX into single buffer when lengths match but buffers differ
-- Receives: `[0x03, 0x00, 0x00]` - wrong data due to incorrect transaction structure
-- Chip ID read fails with 0x03 instead of 0x63
-
-**Root Cause:**
-ArduPilot's `SPIDevice::transfer(send, send_len, recv, recv_len)` when `send_len == recv_len` but `send != recv`:
-1. Creates buffer of size `send_len + recv_len` (6 bytes in this case)
-2. Copies send data to first half: `buf[0:3] = [0x3C, 0x0C, 0xFF]`
-3. Zeros second half: `buf[3:6] = [0x00, 0x00, 0x00]`
-4. Does 6-byte SPI transfer instead of 3-byte
-5. Copies `buf[3:6]` to recv buffer
-6. This is NOT what the ICP201XX expects
-
-**Solution:**
-Must use `dev->transfer_fullduplex(buf, 3)` instead, which performs true 3-byte full-duplex SPI transaction.
-
-### Code Location for Fix
-
-File: `ardupilot/libraries/AP_HAL_ChibiOS/SPIDevice.cpp`
-
-The problematic code path (lines 289-310):
-```cpp
-bool SPIDevice::transfer(const uint8_t *send, uint32_t send_len,
-                         uint8_t *recv, uint32_t recv_len)
-{
-    // ... when send_len == recv_len and send != recv:
-    uint8_t buf[send_len+recv_len];  // Creates 6-byte buffer!
-    if (send_len > 0) {
-        memcpy(buf, send, send_len);
-    }
-    if (recv_len > 0) {
-        memset(&buf[send_len], 0, recv_len);
-    }
-    bool ret = do_transfer(buf, buf, send_len+recv_len);  // 6-byte transfer
-    if (ret && recv_len > 0) {
-        memcpy(recv, &buf[send_len], recv_len);  // Copies wrong data
-    }
-    return ret;
-}
+Hardware output confirms:
 ```
-
-The correct approach (lines 314-324):
-```cpp
-bool SPIDevice::transfer_fullduplex(const uint8_t *send, uint8_t *recv, uint32_t len)
-{
-    uint8_t buf[len];
-    memcpy(buf, send, len);
-    bool ret = do_transfer(buf, buf, len);  // Proper full-duplex
-    if (ret) {
-        memcpy(recv, buf, len);
-    }
-    return ret;
-}
+ICP201XX read_reg: reg=0x0C len=1 tx=[0x3C,0x0C,0xFF] rx=[0xFF,0xFF,0x63] data=0x63
 ```
 
 ## Hardware Configuration
@@ -75,90 +28,134 @@ bool SPIDevice::transfer_fullduplex(const uint8_t *send, uint8_t *recv, uint32_t
 - Flash Size: 2MB
 - Voltage: 3.27V
 - Programming Interface: ST-LINK via SWD
+- **IMPORTANT: Board approaching lifetime write cycle limit - minimize flashing**
 
 ### Barometer Sensor
-- Model: ICP201XX
-- Interface: SPI Mode 3 (CPOL=1, CPHA=1) on bus 4
-- Expected Chip ID: 0x63
-- Current Status: Reading 0x03 due to incorrect SPI transfer method
+- Model: ICP201XX (TDK InvenSense)
+- Interface: SPI Mode 3 on bus 4
+- Chip ID: 0x63 ✓ CONFIRMED
 - SPI Frequency: 6 MHz max
+- Transaction format: 3-byte full-duplex [CMD, REG, DATA]
 
-## Betaflight Reference Implementation
+## Next Steps - Complete Driver Implementation
 
-Betaflight's working implementation (verified on hardware):
-- SPI Mode 3 (CPOL=1, CPHA=1) - confirmed working
-- Full-duplex SPI transactions via `spiSequence()` with `busSegment_t` structures
-- Read command: 0x3C
-- Write command: 0x33 (note: different from datasheet's 0x34)
-- Dummy read after each register access (except EMPTY register 0x00)
-- 3-byte transactions: [CMD, REG, DATA/DUMMY]
-- **Data appears in third byte of response** - this is the key
+### Phase 1: Core Register Operations (IN PROGRESS)
+1. ✓ Chip ID read working
+2. ✓ Version register read
+3. ✓ SPI full-duplex transactions
+4. Implement complete initialization sequence from Betaflight:
+   - Soft reset
+   - Boot sequence with version detection (B2 vs non-B2)
+   - OTP calibration data reading (4 blocks via OTP state machine)
+   - Mode configuration
 
-Debug output from Betaflight shows:
+### Phase 2: FIFO-Based Continuous Reading
+Following Betaflight's exact implementation:
+1. Configure FIFO mode (pressure + temperature interleaved)
+2. Set operation mode (Mode 1: 120Hz ODR for high-speed)
+3. Enable continuous measurement mode
+4. Read FIFO fill level
+5. Read FIFO data in 6-byte chunks (3 bytes pressure + 3 bytes temp per sample)
+6. Process raw data with OTP calibration coefficients
+
+### Phase 3: Data Processing
+1. Extract pressure and temperature from FIFO samples
+2. Apply OTP calibration using polynomial calculations
+3. Implement trend-weighted averaging (Betaflight feature)
+4. Update ArduPilot pressure/temperature at configured rate
+
+## Critical Implementation Details from Betaflight
+
+### Timing Requirements
+- **Startup delay**: 100ms after power-on (Betaflight increased from 10ms)
+- **MODE_SELECT latch delay**: 200µs UNCONDITIONAL after MODE_SELECT writes
+- **Read interval**: 25ms (collect ~3 samples at 120Hz)
+- **Conversion interval**: 8333µs (120Hz ODR)
+
+### Boot Sequence (Version-Dependent)
 ```
-icp201xxReadReg: reg=0x0C len=1 tx=[0x3C,0x0C,0xFF...] rx=[0xFF,0xFF,0x63...] data=0x63
+if (version == 0xB2):
+    # B2 variant boot sequence
+    1. Read OTP data (4 blocks)
+    2. Write block 0 word 0 to MR register
+    3. Write block 0 word 1 to MRA register  
+    4. Write block 0 word 2 to MRB register
+else:
+    # Non-B2 variant
+    1. Read OTP data (4 blocks)
+    # No MR/MRA/MRB writes needed
 ```
 
-## Next Steps
+### OTP Reading State Machine
+Must follow exact sequence:
+1. Write 0x00 to OTP_CONFIG1 (enable OTP)
+2. For each address 0-3:
+   - Write address to OTP_ADDR
+   - Write 0x10 (READ command) to OTP_CMD
+   - Poll OTP_STATUS until bit 0 == 1 (ready)
+   - Read data from OTP_RDATA
+3. Store 4 bytes of OTP data for calibration
 
-1. **Fix all SPI transactions in AP_Baro_ICP201XX.cpp**
-   - Replace `dev->transfer(tx, 3, rx, 3)` with `dev->transfer_fullduplex(buf, 3)`
-   - Ensure single buffer is used for TX/RX
-   - Extract data from buf[2] (third byte)
-   - Apply to chip ID read, register reads, and register writes
+### Mode Configuration
+```
+MODE_SELECT register bits:
+- Bit 0-1: FIFO readout mode (0 = pressure+temp interleaved)
+- Bit 2: Power mode (0 = normal, 1 = active) - USE NORMAL
+- Bit 3: Measurement mode (1 = continuous)
+- Bit 4: Forced trigger (0 = standby)
+- Bit 5-7: Operation mode (1 = Mode 1 = 120Hz ODR)
 
-2. **Test chip ID read first**
-   - Modify only the chip ID reading code initially
-   - Build, flash, monitor
-   - Verify chip ID now reads 0x63 instead of 0x03
-   - Only proceed once this works
+Value: 0x20 | 0x08 | 0x00 = 0x28
+(Mode 1 | continuous | normal power | pres+temp FIFO)
+```
 
-3. **Complete remaining driver implementation**
-   - Implement FIFO-based continuous reading mode (like Betaflight)
-   - Add OTP calibration data reading
-   - Implement proper pressure/temperature calculations from FIFO data
-   - Add boot sequence based on version detection (B2 vs non-B2)
+### FIFO Reading
+- Read FIFO_FILL register to get sample count
+- Each sample = 6 bytes (3 pressure + 3 temperature)
+- Must read in multiples of 6 bytes
+- Data format: 20-bit values in 3 bytes (MSB first)
 
-4. **Compare SPI abstractions thoroughly**
-   - Betaflight uses busSegment_t + spiSequence()
-   - ArduPilot uses transfer() and transfer_fullduplex()
-   - Understand exact byte-level behavior of each
-   - Ensure ArduPilot driver mirrors Betaflight's actual SPI transactions
+### Register Access Pattern
+Every register read/write MUST be followed by dummy read of REG_EMPTY (0x00), 
+EXCEPT when reading REG_EMPTY itself.
+
+### SPI Commands
+- Read: 0x3C (single byte) or 0x3D (multi-byte) - Betaflight uses 0x3C for all
+- Write: 0x33 (Betaflight uses this, not datasheet's 0x34)
 
 ## Key Files
 
-- `libraries/AP_Baro/AP_Baro_ICP201XX.cpp` - Driver needing SPI fixes (current version uses incorrect transfer API)
+- `libraries/AP_Baro/AP_Baro_ICP201XX.cpp` - Driver (NEEDS COMPLETION)
 - `libraries/AP_Baro/AP_Baro_ICP201XX.h` - Driver header
-- `libraries/AP_HAL_ChibiOS/SPIDevice.cpp` - SPI transfer implementation (lines 289-324)
-- `betaflight/src/main/drivers/barometer/barometer_icp201xx.c` - Reference implementation
-- `libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - Hardware config (SPI Mode 3)
+- `betaflight/src/main/drivers/barometer/barometer_icp201xx.c` - Reference (WORKING)
+- `libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - Hardware config
+- `libraries/AP_HAL_ChibiOS/SPIDevice.cpp` - SPI implementation
 
 ## Test Scripts
 
-All testing uses these three scripts only:
+**IMPORTANT: Minimize board flashing due to write cycle concerns**
+
 - `./build.sh` - Builds firmware using Docker
 - `./flash.sh` - Flashes to hardware via ST-LINK
 - `./monitor.sh` - Resets and monitors serial output
 
-**Important:** Never run `./waf` directly - always use Docker via build.sh. If flash fails, check for stuck STM32 programmer processes: `pkill -9 -f STM32`
+Always use Docker for builds. If flash fails, check for stuck processes: `pkill -9 -f STM32`
 
-## Important Notes
+## Implementation Guidelines
 
-- **Never assume success without hardware verification**
-- The chip ID is definitely NOT 0x3C (that's the read command)
-- The chip ID is positively NOT 0x03 (current incorrect reading from bad SPI)
-- Expected chip ID is 0x63 (verified in Betaflight output)
-- SPI Mode 3 is confirmed correct (matches Betaflight)
-- The ICP201XX has a "strange SPI transaction method" - data always in 3rd byte of response
-- **Always use full-duplex SPI (transfer_fullduplex) for this sensor**
-- Betaflight confirmed working with exact same hardware
-- Current ArduPilot code at commit c5d1d465313dc9492020f53a90a03abbb6c731bb
+1. **Preserve I2C compatibility**: Keep I2C code paths intact, only modify SPI sections
+2. **Follow Betaflight exactly**: Match timing, sequences, register values
+3. **Use transfer_fullduplex()**: For all SPI transactions on this sensor
+4. **Match register definitions**: Use same names/values as Betaflight where possible
+5. **Preserve calibration logic**: Copy OTP reading and calculation methods
+6. **Test incrementally**: But minimize flashing - implement fully before testing
 
-## Recommendation
+## Notes
 
-Make minimal changes to test the SPI fix theory:
-1. Change ONLY the chip ID read to use transfer_fullduplex
-2. Build and test
-3. If successful (reads 0x63), proceed with fixing remaining SPI calls
-4. Add heavy debug logging to compare byte-for-byte with Betaflight
-5. Use Betaflight's usbCdcPrintf for reference implementation debugging
+- Chip ID is NOT 0x3C (that's the read command)
+- Chip ID is 0x63 (verified on hardware)
+- Version can be 0x00 or 0xB2 (both valid)
+- This sensor has unusual SPI protocol - data always in 3rd byte
+- Betaflight implementation confirmed working on same hardware
+- ArduPilot driver at commit 318dd27d96 (chip ID fix)
+- Full-duplex SPI is MANDATORY for this sensor
