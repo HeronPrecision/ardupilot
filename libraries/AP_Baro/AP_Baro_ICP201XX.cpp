@@ -162,8 +162,11 @@ bool AP_Baro_ICP201XX::init()
     
     read_reg(REG_VERSION, &ver);
 
+    hal.console->printf("ICP201XX: Read chip_id=0x%02X version=0x%02X (expecting id=0x%02X)\n", id, ver, ICP201XX_ID);
+    
     // ONLY accept the correct chip ID (0x63) - no exceptions!
     if (id != ICP201XX_ID) {
+        hal.console->printf("ICP201XX: CHIP ID MISMATCH! Got 0x%02X, expected 0x%02X\n", id, ICP201XX_ID);
         goto failed;
     }
 
@@ -208,9 +211,9 @@ void AP_Baro_ICP201XX::dummy_reg()
     // Perform dummy read from EMPTY register as required by ICP201XX protocol
     if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
         // SPI mode: need to send read command for EMPTY register
-        uint8_t tx_buf[3] = { ICP201XX_SPI_CMD_READ, REG_EMPTY, 0xFF };
-        uint8_t rx_buf[3];
-        dev->transfer(tx_buf, 3, rx_buf, 3);
+        // Use full-duplex SPI for proper 3-byte transaction
+        uint8_t buf[3] = { ICP201XX_SPI_CMD_READ, REG_EMPTY, 0xFF };
+        dev->transfer_fullduplex(buf, 3);
     } else {
         // I2C mode: standard transfer
         uint8_t reg = REG_EMPTY;
@@ -224,25 +227,31 @@ bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *buf, uint8_t len)
     bool ret;
     
     if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
-        // SPI mode: Use Betaflight-compatible command structure
-        // Command byte combines read operation and register address
-        uint8_t cmd;
-        if (len == 1) {
-            cmd = 0x3C | (reg & 0x3F);  // Read command for single byte
-        } else {
-            cmd = 0x3D | (reg & 0x3F);  // Read command for multiple bytes
-        }
+        // SPI mode: Use Betaflight-compatible command structure with full-duplex SPI
+        // ICP201XX requires proper 3-byte full-duplex transactions
+        // Command format: [CMD, REG, 0xFF] -> response data appears in byte 2 (third byte)
+        uint8_t spi_buf[32];
         
-        uint8_t tx_buf[32];
-        uint8_t rx_buf[32];
+        // For chip ID read: send [0x3C, 0x0C, 0xFF] and get data in spi_buf[2]
+        spi_buf[0] = ICP201XX_SPI_CMD_READ;  // 0x3C
+        spi_buf[1] = reg;                     // Register address
+        memset(&spi_buf[2], 0xFF, len);       // Dummy bytes to clock in data
         
-        tx_buf[0] = cmd;           // Command with register address
-        memset(&tx_buf[1], 0xFF, len);  // Dummy bytes to clock in data
-        
-        ret = dev->transfer(tx_buf, len + 1, rx_buf, len + 1);
+        // Perform full-duplex SPI transaction
+        ret = dev->transfer_fullduplex(spi_buf, len + 2);
         
         if (ret) {
-            memcpy(buf, &rx_buf[1], len);  // Data starts after command response
+            // Data appears starting at byte 2 (third byte of response)
+            memcpy(buf, &spi_buf[2], len);
+            
+            // Debug output for chip ID reads
+            if (reg == REG_DEVICE_ID) {
+                hal.console->printf("ICP201XX read_reg: reg=0x%02X len=%d tx=[0x%02X,0x%02X,0x%02X] rx=[0x%02X,0x%02X,0x%02X] data=0x%02X\n",
+                    reg, len, 
+                    ICP201XX_SPI_CMD_READ, reg, 0xFF,
+                    spi_buf[0], spi_buf[1], spi_buf[2],
+                    buf[0]);
+            }
         }
     } else {
         // I2C mode: standard transfer
@@ -264,12 +273,13 @@ bool AP_Baro_ICP201XX::write_reg(uint8_t reg, uint8_t val)
     bool ret;
     
     if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
-        // SPI mode: Use Betaflight-compatible command structure
-        // Command byte combines write operation and register address
-        uint8_t tx_buf[2];
-        tx_buf[0] = 0x33 | (reg & 0x3F);  // Write command with register address
-        tx_buf[1] = val;
-        ret = dev->transfer(tx_buf, 2, nullptr, 0);
+        // SPI mode: Use Betaflight-compatible 3-byte full-duplex transaction
+        // Transaction format: [WRITE_CMD, REG, VAL]
+        uint8_t buf[3];
+        buf[0] = ICP201XX_SPI_CMD_WRITE;  // 0x33
+        buf[1] = reg;
+        buf[2] = val;
+        ret = dev->transfer_fullduplex(buf, 3);
     } else {
         // I2C mode: standard transfer
         uint8_t data[2] = { reg, val };
