@@ -138,7 +138,7 @@ EXCEPT when reading REG_EMPTY itself.
 
 - `./build.sh` - Builds firmware using Docker
 - `./flash.sh` - Flashes to hardware via ST-LINK
-- `./monitor.sh` - Resets and monitors serial output
+- `./monitor.sh` - Resets the device, requests barometer MAVLink streams, and prints raw plus scaled pressure/temperature output
 
 Always use Docker for builds. If flash fails, check for stuck processes: `pkill -9 -f STM32`
 
@@ -153,6 +153,8 @@ The ArduPilot driver now matches Betaflight's implementation:
 5. **FIR warmup**: Waits for and discards 14 initial samples
 6. **Timer**: 25ms interval for optimal sample collection at 120Hz
 7. **I2C compatibility**: Fully preserved, all SPI changes are isolated
+8. **Ground telemetry**: `monitor.sh` and `mavlink_monitor.py` now request SCALED_PRESSURE and RAW_PRESSURE MAVLink streams to expose raw ICP201XX pressure and temperature data for validation
+9. **Serial readiness**: `mavlink_monitor.py` now waits up to 10 seconds for `/dev/ttyACM0` (or the specified device) to enumerate before configuring the port, preventing lost data immediately after reset
 
 ## Notes
 

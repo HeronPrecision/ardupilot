@@ -13,14 +13,14 @@ from pymavlink import mavutil
 
 def print_header():
     """Print column headers for sensor data"""
-    print("\n" + "=" * 100)
+    print("\n" + "=" * 200)
     print(
-        f"{'TIME':<12} {'ROLL':>8} {'PITCH':>8} {'YAW':>8} {'ROLLSPD':>9} {'PITCHSPD':>9} {'YAWSPD':>9} {'ALT_REL':>9} {'ALT_ABS':>9} {'HDG':>6} {'MAG_X':>8} {'MAG_Y':>8} {'MAG_Z':>8}"
+        f"{'TIME':<12} {'ROLL':>8} {'PITCH':>8} {'YAW':>8} {'ROLLSPD':>9} {'PITCHSPD':>9} {'YAWSPD':>9} {'ALT_REL':>9} {'ALT_ABS':>9} {'HDG':>6} {'MAG_X':>8} {'MAG_Y':>8} {'MAG_Z':>8} {'PRESS_ABS':>10} {'PRESS_DIFF':>11} {'BARO_TEMP':>11} {'DIFF_TEMP':>11} {'RAW_ABS':>9} {'RAW_DIFF1':>10} {'RAW_DIFF2':>10} {'RAW_TEMP':>9}"
     )
     print(
-        f"{'(sec)':<12} {'(deg)':>8} {'(deg)':>8} {'(deg)':>8} {'(deg/s)':>9} {'(deg/s)':>9} {'(deg/s)':>9} {'(m)':>9} {'(m)':>9} {'(deg)':>6} {'(mGa)':>8} {'(mGa)':>8} {'(mGa)':>8}"
+        f"{'(sec)':<12} {'(deg)':>8} {'(deg)':>8} {'(deg)':>8} {'(deg/s)':>9} {'(deg/s)':>9} {'(deg/s)':>9} {'(m)':>9} {'(m)':>9} {'(deg)':>6} {'(mGa)':>8} {'(mGa)':>8} {'(mGa)':>8} {'(hPa)':>10} {'(hPa)':>11} {'(degC)':>11} {'(degC)':>11} {'(raw)':>9} {'(raw)':>10} {'(raw)':>10} {'(raw)':>9}"
     )
-    print("=" * 100)
+    print("=" * 200)
 
 
 def format_value(value, width=8, decimals=2):
@@ -43,6 +43,8 @@ class MAVLinkMonitor:
         self.sys_status = None
         self.raw_imu = None
         self.scaled_imu = None
+        self.scaled_pressure = None
+        self.raw_pressure = None
 
         # Timing
         self.start_time = time.time()
@@ -63,8 +65,20 @@ class MAVLinkMonitor:
             import os
 
             if not os.path.exists(self.connection_string):
-                print(f"Error: Serial device {self.connection_string} not found")
-                return False
+                if not quiet:
+                    print(
+                        f"Waiting for serial device {self.connection_string} to appear (timeout: 10s)..."
+                    )
+                start_wait = time.time()
+                while time.time() - start_wait < 10:
+                    if os.path.exists(self.connection_string):
+                        break
+                    time.sleep(0.2)
+                else:
+                    print(
+                        f"Error: Serial device {self.connection_string} not found after 10s"
+                    )
+                    return False
 
             # Try to configure the serial port
             try:
@@ -190,6 +204,8 @@ class MAVLinkMonitor:
             (mavutil.mavlink.MAVLINK_MSG_ID_SYS_STATUS, 1000000),  # 1 Hz
             (mavutil.mavlink.MAVLINK_MSG_ID_SCALED_IMU, 250000),  # 4 Hz
             (mavutil.mavlink.MAVLINK_MSG_ID_RAW_IMU, 250000),  # 4 Hz
+            (mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE, 250000),  # 4 Hz
+            (mavutil.mavlink.MAVLINK_MSG_ID_RAW_PRESSURE, 250000),  # 4 Hz
         ]
 
         for msg_id, interval_us in message_ids:
@@ -330,6 +346,36 @@ class MAVLinkMonitor:
         )
         # Don't log every request to reduce verbosity
 
+        # Request SCALED_PRESSURE
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+            0,
+            mavutil.mavlink.MAVLINK_MSG_ID_SCALED_PRESSURE,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+
+        # Request RAW_PRESSURE
+        self.master.mav.command_long_send(
+            self.master.target_system,
+            self.master.target_component,
+            mavutil.mavlink.MAV_CMD_REQUEST_MESSAGE,
+            0,
+            mavutil.mavlink.MAVLINK_MSG_ID_RAW_PRESSURE,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+
     def process_messages(self, timeout=0.1):
         """Process incoming MAVLink messages"""
         msg = self.master.recv_match(blocking=True, timeout=timeout)
@@ -436,6 +482,36 @@ class MAVLinkMonitor:
                     },
                 }
             )
+        elif msg_type == "SCALED_PRESSURE":
+            self.scaled_pressure = msg
+            self.messages_received_log.append(
+                {
+                    "time": time.time() - self.start_time,
+                    "type": "SCALED_PRESSURE",
+                    "data": {
+                        "press_abs": msg.press_abs,
+                        "press_diff": msg.press_diff,
+                        "temperature": getattr(msg, "temperature", None),
+                        "temperature_press_diff": getattr(
+                            msg, "temperature_press_diff", None
+                        ),
+                    },
+                }
+            )
+        elif msg_type == "RAW_PRESSURE":
+            self.raw_pressure = msg
+            self.messages_received_log.append(
+                {
+                    "time": time.time() - self.start_time,
+                    "type": "RAW_PRESSURE",
+                    "data": {
+                        "press_abs": msg.press_abs,
+                        "press_diff1": msg.press_diff1,
+                        "press_diff2": msg.press_diff2,
+                        "temperature": msg.temperature,
+                    },
+                }
+            )
 
     def get_sensor_data(self):
         """Extract and return current sensor readings"""
@@ -455,6 +531,14 @@ class MAVLinkMonitor:
             "mag_x": None,
             "mag_y": None,
             "mag_z": None,
+            "press_abs_hpa": None,
+            "press_diff_hpa": None,
+            "press_temp_c": None,
+            "press_diff_temp_c": None,
+            "raw_press_abs": None,
+            "raw_press_diff1": None,
+            "raw_press_diff2": None,
+            "raw_press_temp": None,
         }
 
         # Attitude data (roll, pitch, yaw in radians, rates in rad/s)
@@ -488,6 +572,26 @@ class MAVLinkMonitor:
             data["mag_y"] = self.raw_imu.ymag
             data["mag_z"] = self.raw_imu.zmag
 
+        if self.scaled_pressure:
+            data["press_abs_hpa"] = self.scaled_pressure.press_abs
+            data["press_diff_hpa"] = self.scaled_pressure.press_diff
+            temp_raw = getattr(self.scaled_pressure, "temperature", None)
+            data["press_temp_c"] = (
+                (temp_raw / 100.0) if temp_raw not in (None, 0) else None
+            )
+            temp_diff_raw = getattr(
+                self.scaled_pressure, "temperature_press_diff", None
+            )
+            data["press_diff_temp_c"] = (
+                (temp_diff_raw / 100.0) if temp_diff_raw not in (None, 0) else None
+            )
+
+        if self.raw_pressure:
+            data["raw_press_abs"] = self.raw_pressure.press_abs
+            data["raw_press_diff1"] = self.raw_pressure.press_diff1
+            data["raw_press_diff2"] = self.raw_pressure.press_diff2
+            data["raw_press_temp"] = self.raw_pressure.temperature
+
         return data
 
     def print_sensor_data(self, data):
@@ -505,7 +609,15 @@ class MAVLinkMonitor:
             f"{format_value(data['heading'], 6, 0)} "
             f"{format_value(data['mag_x'], 8, 1)} "
             f"{format_value(data['mag_y'], 8, 1)} "
-            f"{format_value(data['mag_z'], 8, 1)}"
+            f"{format_value(data['mag_z'], 8, 1)} "
+            f"{format_value(data['press_abs_hpa'], 10, 2)} "
+            f"{format_value(data['press_diff_hpa'], 11, 2)} "
+            f"{format_value(data['press_temp_c'], 11, 2)} "
+            f"{format_value(data['press_diff_temp_c'], 11, 2)} "
+            f"{format_value(data['raw_press_abs'], 9, 0)} "
+            f"{format_value(data['raw_press_diff1'], 10, 0)} "
+            f"{format_value(data['raw_press_diff2'], 10, 0)} "
+            f"{format_value(data['raw_press_temp'], 9, 0)}"
         )
 
     def print_debug_output(self, quiet=False):
@@ -548,6 +660,44 @@ class MAVLinkMonitor:
                 if latest_mag:
                     print(
                         f"Latest magnetometer: X={latest_mag['data']['xmag']}, Y={latest_mag['data']['ymag']}, Z={latest_mag['data']['zmag']} (mGa)"
+                    )
+
+            if "SCALED_PRESSURE" in msg_counts:
+                latest_scaled_pressure = None
+                for msg in reversed(recent_messages):
+                    if msg["type"] == "SCALED_PRESSURE":
+                        latest_scaled_pressure = msg
+                        break
+
+                if latest_scaled_pressure:
+                    temp_raw = latest_scaled_pressure["data"]["temperature"]
+                    temp_c = (temp_raw / 100.0) if temp_raw not in (None, 0) else None
+                    temp_diff_raw = latest_scaled_pressure["data"][
+                        "temperature_press_diff"
+                    ]
+                    temp_diff_c = (
+                        (temp_diff_raw / 100.0)
+                        if temp_diff_raw not in (None, 0)
+                        else None
+                    )
+                    temp_str = f"{temp_c:.2f} degC" if temp_c is not None else "N/A"
+                    temp_diff_str = (
+                        f"{temp_diff_c:.2f} degC" if temp_diff_c is not None else "N/A"
+                    )
+                    print(
+                        f"Latest barometer (scaled): abs={latest_scaled_pressure['data']['press_abs']:.2f} hPa diff={latest_scaled_pressure['data']['press_diff']:.2f} hPa temp={temp_str} diff_temp={temp_diff_str}"
+                    )
+
+            if "RAW_PRESSURE" in msg_counts:
+                latest_raw_pressure = None
+                for msg in reversed(recent_messages):
+                    if msg["type"] == "RAW_PRESSURE":
+                        latest_raw_pressure = msg
+                        break
+
+                if latest_raw_pressure:
+                    print(
+                        f"Latest barometer (raw): abs={latest_raw_pressure['data']['press_abs']} diff1={latest_raw_pressure['data']['press_diff1']} diff2={latest_raw_pressure['data']['press_diff2']} temp={latest_raw_pressure['data']['temperature']}"
                     )
         else:
             print("No messages received in last 5 seconds")
