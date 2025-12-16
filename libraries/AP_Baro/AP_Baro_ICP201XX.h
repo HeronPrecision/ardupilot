@@ -48,6 +48,23 @@ private:
     // time last read command was sent
     uint32_t last_measure_us;
 
+    struct Sample {
+        float pressure_pa;
+        float temperature_c;
+        uint32_t timestamp_ms;
+    };
+
+    static constexpr uint8_t SAMPLE_BUFFER_SIZE = 8;
+    static constexpr uint8_t MIN_SAMPLES_FOR_TREND = 3;
+    static constexpr float TREND_THRESHOLD_PA_PER_MS = 0.5f;
+
+    Sample _sample_buffer[SAMPLE_BUFFER_SIZE];
+    uint8_t _sample_head;
+    uint8_t _sample_count;
+    float _last_pressure_pa;
+    float _last_temperature_c;
+    bool _has_valid_sample;
+
     enum class OP_MODE : uint8_t {
 		OP_MODE0 = 0,   /* Mode 0: Bw:6.25 Hz ODR: 25Hz */
 		OP_MODE1,       /* Mode 1: Bw:30 Hz ODR: 120Hz */
