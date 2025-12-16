@@ -87,9 +87,9 @@ AP_Baro_ICP201XX::AP_Baro_ICP201XX(AP_Baro &baro, AP_HAL::Device &_dev)
     , dev(&_dev)
 {
     // CRITICAL DEBUG MESSAGE - This should always appear
-    hal.console->printf("=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===\n");
-    hal.console->printf("=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - CONSTRUCTOR DEBUG TEST");
+    // hal.console->printf("=== ICP201XX: DEBUG HELLO MESSAGE IN CONSTRUCTOR ===\n");
+    // hal.console->printf("=== ICP201XX: CONSTRUCTOR CALLED - THIS IS OUR TEST ===\n");
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - CONSTRUCTOR DEBUG TEST");
 }
 
 
@@ -97,43 +97,43 @@ AP_Baro_ICP201XX::AP_Baro_ICP201XX(AP_Baro &baro, AP_HAL::Device &_dev)
 AP_Baro_Backend *AP_Baro_ICP201XX::probe(AP_Baro &baro, AP_HAL::Device &dev)
 {
     // DEBUG: Wait for console to be ready
-    hal.scheduler->delay(1000);
+    // hal.scheduler->delay(1000);
     
     // DEBUG: Very early debug output
-    hal.console->printf("=== ICP201XX: PROBE FUNCTION STARTING ===\n");
-    hal.console->printf("=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===\n");
-    hal.console->printf("ICP201XX: probe() ENTRY - bus %u addr 0x%02x\n", 
-           dev.bus_num(), dev.get_bus_address());
-    hal.console->printf("=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - PROBE DEBUG TEST");
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: probe ENTRY");
+    // hal.console->printf("=== ICP201XX: PROBE FUNCTION STARTING ===\n");
+    // hal.console->printf("=== ICP201XX: HELLO - PROBE DEBUG MESSAGE ===\n");
+    // hal.console->printf("ICP201XX: probe() ENTRY - bus %u addr 0x%02x\n", 
+    //        dev.bus_num(), dev.get_bus_address());
+    // hal.console->printf("=== ICP201XX: IF YOU SEE THIS, OUR DEBUG METHOD WORKS ===\n");
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - PROBE DEBUG TEST");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: probe ENTRY");
     
     AP_Baro_ICP201XX *sensor = NEW_NOTHROW AP_Baro_ICP201XX(baro, dev);
     if (!sensor) {
-        hal.console->printf("ICP201XX: MEMORY ALLOCATION FAILED\n");
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: MEMORY FAILED");
+        // hal.console->printf("ICP201XX: MEMORY ALLOCATION FAILED\n");
+        // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: MEMORY FAILED");
         return nullptr;
     }
     
-    hal.console->printf("=== ICP201XX: SENSOR OBJECT CREATED ===\n");
-    hal.console->printf("=== ICP201XX: THIS IS ANOTHER HELLO TEST ===\n");
-    hal.console->printf("ICP201XX: sensor created, calling init()\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - SENSOR CREATED");
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: calling init");
+    // hal.console->printf("=== ICP201XX: SENSOR OBJECT CREATED ===\n");
+    // hal.console->printf("=== ICP201XX: THIS IS ANOTHER HELLO TEST ===\n");
+    // hal.console->printf("ICP201XX: sensor created, calling init()\n");
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: HELLO - SENSOR CREATED");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: calling init");
     
     bool init_result = sensor->init();
-    hal.console->printf("ICP201XX: init() returned %s\n", init_result ? "SUCCESS" : "FAILED");
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: init result=%s", init_result ? "SUCCESS" : "FAILED");
+    // hal.console->printf("ICP201XX: init() returned %s\n", init_result ? "SUCCESS" : "FAILED");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: init result=%s", init_result ? "SUCCESS" : "FAILED");
     
     if (!init_result) {
-        hal.console->printf("ICP201XX: PROBE FAILED - init returned false\n");
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: PROBE FAILED");
+        // hal.console->printf("ICP201XX: PROBE FAILED - init returned false\n");
+        // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "ICP201XX: PROBE FAILED");
         delete sensor;
         return nullptr;
     }
     
-    hal.console->printf("ICP201XX: PROBE SUCCESS!\n");
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: PROBE SUCCESS");
+    // hal.console->printf("ICP201XX: PROBE SUCCESS!\n");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ICP201XX: PROBE SUCCESS");
     return sensor;
 }
 
@@ -162,16 +162,16 @@ bool AP_Baro_ICP201XX::init()
     
     read_reg(REG_VERSION, &ver);
 
-    hal.console->printf("ICP201XX: Read chip_id=0x%02X version=0x%02X (expecting id=0x%02X)\n", id, ver, ICP201XX_ID);
+    // hal.console->printf("ICP201XX: Read chip_id=0x%02X version=0x%02X (expecting id=0x%02X)\n", id, ver, ICP201XX_ID);
     
     // ONLY accept the correct chip ID (0x63) - no exceptions!
     if (id != ICP201XX_ID) {
-        hal.console->printf("ICP201XX: CHIP ID MISMATCH! Got 0x%02X, expected 0x%02X\n", id, ICP201XX_ID);
+        // hal.console->printf("ICP201XX: CHIP ID MISMATCH! Got 0x%02X, expected 0x%02X\n", id, ICP201XX_ID);
         goto failed;
     }
 
     if (ver != 0x00 && ver != 0xB2) {
-        hal.console->printf("ICP201XX: Invalid version 0x%02X\n", ver);
+        // hal.console->printf("ICP201XX: Invalid version 0x%02X\n", ver);
         goto failed;
     }
 
@@ -179,7 +179,7 @@ bool AP_Baro_ICP201XX::init()
 
     // Boot sequence handles OTP calibration
     if (!boot_sequence()) {
-        hal.console->printf("ICP201XX: Boot sequence failed\n");
+        // hal.console->printf("ICP201XX: Boot sequence failed\n");
         goto failed;
     }
 
@@ -187,7 +187,7 @@ bool AP_Baro_ICP201XX::init()
     soft_reset();
 
     if (!configure()) {
-        hal.console->printf("ICP201XX: Configuration failed\n");
+        // hal.console->printf("ICP201XX: Configuration failed\n");
         goto failed;
     }
 
@@ -206,7 +206,7 @@ bool AP_Baro_ICP201XX::init()
     // Register timer at 25ms interval (read every 25ms to collect ~3 samples at 120Hz)
     dev->register_periodic_callback(25000, FUNCTOR_BIND_MEMBER(&AP_Baro_ICP201XX::timer, void));
     
-    hal.console->printf("ICP201XX: Init successful\n");
+    // hal.console->printf("ICP201XX: Init successful\n");
     return true;
 
  failed:
@@ -340,6 +340,8 @@ bool AP_Baro_ICP201XX::read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val)
     }
 
     /* Wait for the OTP read to finish Monitor otp_status */
+    // Add timeout to prevent infinite blocking (10ms timeout = 10000 iterations at 1µs each)
+    uint32_t timeout = 10000;
     do     {
         read_reg(REG_OTP_MTP_OTP_STATUS, &otp_status);
 
@@ -348,6 +350,11 @@ bool AP_Baro_ICP201XX::read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val)
         }
 
         hal.scheduler->delay_microseconds(1);
+        
+        if (--timeout == 0) {
+            // Timeout occurred - OTP read did not complete
+            return false;
+        }
     } while (1);
 
     /* Read the data from register */
@@ -417,7 +424,7 @@ bool AP_Baro_ICP201XX::boot_sequence()
 
     if (version == 0xB2) {
         // B2 version doesn't need boot sequence
-        hal.console->printf("ICP201XX: B2 version detected, skipping boot sequence\n");
+        // hal.console->printf("ICP201XX: B2 version detected, skipping boot sequence\n");
         return true;
     }
 
@@ -428,11 +435,11 @@ bool AP_Baro_ICP201XX::boot_sequence()
 
     if (bootup_status & 0x01) {
         // Boot sequence already done
-        hal.console->printf("ICP201XX: Boot sequence already completed\n");
+        // hal.console->printf("ICP201XX: Boot sequence already completed\n");
         return true;
     }
 
-    hal.console->printf("ICP201XX: Running boot sequence for non-B2 variant\n");
+    // hal.console->printf("ICP201XX: Running boot sequence for non-B2 variant\n");
 
     // Activate OTP power domain
     if (!write_reg(REG_MODE_SELECT, 0x04)) return false;
@@ -503,7 +510,7 @@ bool AP_Baro_ICP201XX::boot_sequence()
     if (!write_reg(REG_MODE_SELECT, 0x00)) return false;
     hal.scheduler->delay(10);
 
-    hal.console->printf("ICP201XX: Boot sequence completed successfully\n");
+    // hal.console->printf("ICP201XX: Boot sequence completed successfully\n");
     return true;
 }
 
@@ -540,7 +547,7 @@ bool AP_Baro_ICP201XX::configure()
 
     hal.scheduler->delay(10);
     
-    hal.console->printf("ICP201XX: Configured for Mode 1 (120Hz ODR) continuous operation\n");
+    // hal.console->printf("ICP201XX: Configured for Mode 1 (120Hz ODR) continuous operation\n");
     return true;
 }
 
@@ -565,9 +572,9 @@ void AP_Baro_ICP201XX::wait_read()
 
     // Check if FIFO filled during warmup - if not, sensor may not be working
     if (fifo_packets == 0) {
-        hal.console->printf("ICP201XX: Warning - No FIFO data during warmup\n");
+        // hal.console->printf("ICP201XX: Warning - No FIFO data during warmup\n");
     } else {
-        hal.console->printf("ICP201XX: FIR warmup complete, flushing %d samples\n", fifo_packets);
+        // hal.console->printf("ICP201XX: FIR warmup complete, flushing %d samples\n", fifo_packets);
     }
 
     // Flush warmup samples

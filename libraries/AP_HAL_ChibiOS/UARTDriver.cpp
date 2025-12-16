@@ -23,6 +23,7 @@
 #include "GPIO.h"
 #include <usbcfg.h>
 #include "shared_dma.h"
+#include "hron_debug.h"
 #include <AP_Math/AP_Math.h>
 #include <AP_InternalError/AP_InternalError.h>
 #include <AP_Common/ExpandingString.h>
@@ -1803,8 +1804,10 @@ void usb_initialise(void)
 {
     static bool initialised;
     if (initialised) {
+        HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x0000A0U);
         return;
     }
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000100U);
     initialised = true;
     sduObjectInit(&SDU1);
     sduStart(&SDU1, &serusbcfg1);
@@ -1821,6 +1824,7 @@ void usb_initialise(void)
     chThdSleep(chTimeUS2I(1500));
     usbStart(serusbcfg1.usbp, &usbcfg);
     usbConnectBus(serusbcfg1.usbp);
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x0001FFU);
 }
 #endif
 

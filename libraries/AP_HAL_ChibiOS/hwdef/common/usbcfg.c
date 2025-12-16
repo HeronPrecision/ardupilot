@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "usbcfg.h"
+#include "../../hron_debug.h"
 // #pragma GCC optimize("O0")
 
 #if defined(HAL_USB_PRODUCT_ID) && !HAL_HAVE_DUAL_USB_CDC
@@ -319,8 +320,10 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
 
   switch (event) {
   case USB_EVENT_ADDRESS:
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000200U);
     return;
   case USB_EVENT_CONFIGURED:
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000210U);
     chSysLockFromISR();
 
     /* Enables the endpoints specified into the configuration.
@@ -335,10 +338,15 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
     chSysUnlockFromISR();
     return;
   case USB_EVENT_RESET:
-    /* Falls into.*/
   case USB_EVENT_UNCONFIGURED:
-    /* Falls into.*/
   case USB_EVENT_SUSPEND:
+    if (event == USB_EVENT_RESET) {
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000220U);
+    } else if (event == USB_EVENT_UNCONFIGURED) {
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000221U);
+    } else {
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000222U);
+    }
     chSysLockFromISR();
 
     /* Disconnection event on suspend.*/
@@ -347,6 +355,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
     chSysUnlockFromISR();
     return;
   case USB_EVENT_WAKEUP:
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000223U);
     chSysLockFromISR();
 
     /* Disconnection event on suspend.*/
@@ -355,6 +364,7 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
     chSysUnlockFromISR();
     return;
   case USB_EVENT_STALLED:
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000224U);
     return;
   }
   return;
@@ -367,18 +377,22 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
 static bool requests_hook(USBDriver *usbp) {
   if (((usbp->setup[0] & USB_RTYPE_RECIPIENT_MASK) == USB_RTYPE_RECIPIENT_INTERFACE) &&
       (usbp->setup[1] == USB_REQ_SET_INTERFACE)) {
+    HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000240U);
     usbSetupTransfer(usbp, NULL, 0, NULL);
     return true;
   }
   if ((usbp->setup[0] & USB_RTYPE_TYPE_MASK) == USB_RTYPE_TYPE_CLASS && usbp->setup[4] == 0x00 && usbp->setup[5] == 0x00) {
     switch (usbp->setup[1]) {
     case CDC_GET_LINE_CODING:
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000231U);
       usbSetupTransfer(usbp, (uint8_t *)&linecoding, sizeof(linecoding), NULL);
       return true;
     case CDC_SET_LINE_CODING:
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000232U);
       usbSetupTransfer(usbp, (uint8_t *)&linecoding, sizeof(linecoding), NULL);
       return true;
     case CDC_SET_CONTROL_LINE_STATE:
+      HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0x000233U);
       /* Nothing to do, there are no control lines.*/
       usbSetupTransfer(usbp, NULL, 0, NULL);
       return true;

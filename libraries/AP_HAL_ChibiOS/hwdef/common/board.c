@@ -20,6 +20,10 @@
 #include "stm32_util.h"
 #include "flash.h"
 #include "watchdog.h"
+#include "hwdef.h"
+#include "../../hron_debug.h"
+
+
 
 
 /*===========================================================================*/
@@ -225,6 +229,42 @@ static void stm32_gpio_init(void) {
 
 #endif //!STM32F100_MCUCONF
 
+#if defined(HRON_CHICKADEE_DEBUG)
+HRONBootMarkerLog g_hron_boot_marker_log __attribute__((section(".noinit")));
+
+static inline uint32_t hron_boot_cycles(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0U) {
+        DWT->CYCCNT = 0U;
+        DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    }
+    return DWT->CYCCNT;
+}
+
+void hron_boot_marker_log_reset(void)
+{
+    g_hron_boot_marker_log.head = 0U;
+    for (uint32_t i = 0U; i < 256U; i++) {
+        g_hron_boot_marker_log.entries[i].timestamp_cycles = 0U;
+        g_hron_boot_marker_log.entries[i].payload = 0U;
+    }
+}
+
+void hron_boot_marker_log_append_raw(uint32_t payload)
+{
+    const uint32_t head = g_hron_boot_marker_log.head++;
+    const uint32_t index = head & 0xFFU;
+    g_hron_boot_marker_log.entries[index].timestamp_cycles = hron_boot_cycles();
+    g_hron_boot_marker_log.entries[index].payload = payload;
+}
+
+void hron_boot_marker_log_append(uint8_t channel, uint32_t value)
+{
+    hron_boot_marker_log_append_raw(HRON_BOOT_ENCODE_CHANNEL_VALUE(channel, value));
+}
+#endif
+
 /**
  * @brief   Early initialization code.
  * @details This initialization must be performed just after stack setup
@@ -234,6 +274,10 @@ static void stm32_gpio_init(void) {
  * You can rely on: 1) const variables or tables 2) flash code 3) automatic variables
  */
 void __early_init(void) {
+#if defined(HRON_CHICKADEE_DEBUG)
+  hron_boot_marker_log_reset();
+  HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_RESET, 0U);
+#endif
 #if !defined(STM32F1)
   stm32_gpio_init();
 #endif
@@ -241,6 +285,7 @@ void __early_init(void) {
   // if running from external flash then the clocks must not be reset - instead rely on the bootloader to setup
   stm32_clock_init();
 #endif
+  HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_CLOCKS, 0U);
 #if defined(HAL_DISABLE_DCACHE)
   SCB_DisableDCache();
 #endif
@@ -298,6 +343,7 @@ void __late_init(void) {
 #ifdef HAL_USB_PRODUCT_ID
   setup_usb_strings();
 #endif
+  HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_USB, 0U);
 
 #ifdef HAL_FLASH_SET_NRST_MODE
   // ensure NRST_MODE is set correctly
@@ -349,5 +395,6 @@ bool mmc_lld_is_write_protected(MMCDriver *mmcp) {
  * @todo    Add your board-specific code, if any.
  */
 void boardInit(void) {
+  HRON_BOOT_DEBUG_MARK_ENCODED(HRON_BOOT_CH_STAGE_HANDOFF, 0U);
   HAL_BOARD_INIT_HOOK_CALL
 }
