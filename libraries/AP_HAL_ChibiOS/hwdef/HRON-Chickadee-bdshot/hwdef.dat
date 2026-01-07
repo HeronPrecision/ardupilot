@@ -1,0 +1,53 @@
+# Bi-directional DShot variant for HRON-Chickadee
+# Based on hwdef/HRON-Chickadee/hwdef.dat with optimizations for bi-directional DShot
+
+include ../HRON-Chickadee/hwdef.dat
+
+# RC input configuration - must use UART for protocols like FPort when using bi-directional DShot
+undef PE12
+PE12 USART6_RX USART6 NODMA ALT(1)
+define DEFAULT_SERIAL6_PROTOCOL SerialProtocol_RCIN
+define DEFAULT_SERIAL6_BAUD 115
+
+# Motors with bi-directional DShot enabled
+undef PE9 PE11 PE13 PE14 PD12 PD13 PD14 PD15 PA0 PA1 PB10 PB11
+
+PE9  TIM1_CH1  TIM1  PWM(1)  GPIO(50) BIDIR # M1
+PE11 TIM1_CH2  TIM1  PWM(2)  GPIO(51) BIDIR # M2
+PE13 TIM1_CH3  TIM1  PWM(3)  GPIO(52) BIDIR # M3
+PE14 TIM1_CH4  TIM1  PWM(4)  GPIO(53) BIDIR # M4
+PD12 TIM4_CH1  TIM4  PWM(5)  GPIO(54) BIDIR # M5
+PD13 TIM4_CH2  TIM4  PWM(6)  GPIO(55) BIDIR # M6
+PD14 TIM4_CH3  TIM4  PWM(7)  GPIO(56) BIDIR # M7
+PD15 TIM4_CH4  TIM4  PWM(8)  GPIO(57) BIDIR # M8
+PA0  TIM2_CH1  TIM2  PWM(9)  GPIO(58) BIDIR # M9/S1
+PA1  TIM2_CH2  TIM2  PWM(10) GPIO(59) BIDIR # M10/S2
+PB10 TIM2_CH3  TIM2  PWM(11) GPIO(60) BIDIR # M11/S3
+PB11 TIM2_CH4  TIM2  PWM(12) GPIO(61) BIDIR # M12/S4
+
+# Motor pin routing configuration - ensure motors are enabled at startup
+undef PD10 PD11 PC13 PE7
+PD10 OUTPUT GPIO(85) HIGH # Route picker (high for motors)
+PD11 OUTPUT GPIO(86) HIGH # Route picker (high for motors)
+PC13 OUTPUT GPIO(83) LOW  # M9-10 enable (pull down to enable)
+PE7  OUTPUT GPIO(84) LOW  # M11-12 enable (pull down to enable)
+
+# Configure RELAY pins to ensure proper initialization of motor routing
+define RELAY1_PIN_DEFAULT 85
+define RELAY2_PIN_DEFAULT 86
+
+# ESC Telemetry support
+define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_ESCTelemetry
+define DEFAULT_SERIAL8_BAUD 115200
+
+# DMA configuration optimized for bi-directional DShot
+undef DMA_NOSHARE DMA_PRIORITY
+DMA_NOSHARE = SPI1* SPI4* TIM1* TIM2* TIM4*
+DMA_PRIORITY = TIM1* TIM2* TIM4* SPI1* SPI4*
+
+# Define bi-directional DShot support
+define HAL_DSHOT_BIDIR 1
+define HAL_DSHOT_TELEMETRY 1
+
+# Default frame type for this board (can be overridden)
+define HAL_FRAME_TYPE_DEFAULT 12
