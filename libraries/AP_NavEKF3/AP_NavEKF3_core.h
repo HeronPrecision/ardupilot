@@ -215,7 +215,7 @@ public:
     bool getMagOffsets(uint8_t mag_idx, Vector3f &magOffsets) const;
 
     // Return the last calculated latitude, longitude and height in WGS-84
-    // If a calculated location isn't available, return a raw GPS measurement
+    // If a calculated location isn't available and position source is GPS, return a raw GPS measurement
     // The status will return true if a calculation or raw measurement is available
     // The getFilterStatus() function provides a more detailed description of data health and must be checked if data is to be used for flight control
     bool getLLH(Location &loc) const;
@@ -259,6 +259,13 @@ public:
 
    // return the innovation consistency test ratios for the velocity, position, magnetometer and true airspeed measurements
     bool getVariances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar, Vector2f &offset) const;
+
+    // return 1-sigma position and velocity uncertainty derived from the EKF state error covariance matrix P
+    // pos_horiz_m: 2D RMS horizontal position uncertainty (m)
+    // pos_vert_m:  1-sigma vertical position uncertainty (m)
+    // vel_m_s:     1-sigma worst-case NED velocity uncertainty (m/s)
+    // returns false if EKF is not yet initialised
+    bool getPosVelUncertainty(float &pos_horiz_m, float &pos_vert_m, float &vel_m_s) const;
 
     // get a particular source's velocity innovations
     // returns true on success and results are placed in innovations and variances arguments
@@ -430,9 +437,10 @@ public:
         WHEN_MANOEUVRING = 1,
         NEVER = 2,
         AFTER_FIRST_CLIMB = 3,
-        ALWAYS = 4
+        ALWAYS = 4,
         // 5 was EXTERNAL_YAW (do not use)
         // 6 was EXTERNAL_YAW_FALLBACK (do not use)
+        GROUND_AND_INFLIGHT = 7,
     };
 
     // magnetometer fusion selections
@@ -447,6 +455,9 @@ public:
 
     // are we using (aka fusing) external nav for yaw?
     bool using_extnav_for_yaw() const;
+
+    // are we using a gps?
+    bool using_gps() const;
 
     // Writes the default equivalent airspeed and 1-sigma uncertainty in m/s to be used in forward flight if a measured airspeed is required and not available.
     void writeDefaultAirSpeed(float airspeed, float uncertainty);
@@ -719,11 +730,13 @@ private:
     // used to perform a reset of the quaternion state covariances only. Set to null for normal operation.
     void CovariancePrediction(Vector3F *rotVarVecPtr);
 
-    // force symmetry on the state covariance matrix
-    void ForceSymmetry();
-
     // constrain variances (diagonal terms) in the state covariance matrix
     void ConstrainVariances();
+
+    // actually do fusion to update statesArray from Kfusion and P from KHP.
+    // returns true and skips fusion if variances would be driven negative.
+    // force skips this negative check; passing true is probably a bug!
+    bool FinishFusion(ftype innov, bool force = false);
 
     // constrain states
     void ConstrainStates();
@@ -1105,6 +1118,7 @@ private:
     bool inFlight;                  // true when the vehicle is definitely flying
     bool prevInFlight;              // value inFlight from previous frame - used to detect transition
     bool manoeuvring;               // boolean true when the flight vehicle is performing horizontal changes in velocity
+    bool fusingStationaryZeroVel;   // true when fusing synthetic zero velocity while stationary on ground
     Vector6 innovVelPos;            // innovation output for a group of measurements
     Vector6 varInnovVelPos;         // innovation variance output for a group of measurements
     Vector6 velPosObs;              // observations for combined velocity and positon group of measurements (3x1 m , 3x1 m/s)

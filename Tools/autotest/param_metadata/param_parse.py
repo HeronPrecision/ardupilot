@@ -11,16 +11,24 @@ import copy
 import os
 import re
 import sys
+
 from argparse import ArgumentParser
 
-from param import (Library, Parameter, Vehicle, known_group_fields,
-                   known_param_fields, required_param_fields, required_library_param_fields, known_units)
 from htmlemit import HtmlEmit
 from rstemit import RSTEmit
 from rstlatexpdfemit import RSTLATEXPDFEmit
 from xmlemit import XmlEmit
-from mdemit import MDEmit
+
 from jsonemit import JSONEmit
+from mdemit import MDEmit
+from param import Library
+from param import Parameter
+from param import Vehicle
+from param import known_group_fields
+from param import known_param_fields
+from param import known_units
+from param import required_library_param_fields
+from param import required_param_fields
 
 parser = ArgumentParser(description="Parse ArduPilot parameters.")
 parser.add_argument("-v", "--verbose", dest='verbose', action='store_true', default=False, help="show debugging output")
@@ -487,7 +495,7 @@ def clean_param(param):
         param.Values = ",".join(new_valueList)
 
     if hasattr(param, "Vector3Parameter"):
-        delattr(param, "Vector3Parameter")
+        del param.Vector3Parameter
 
 
 def do_copy_values(vehicle_params, libraries, param):
@@ -680,7 +688,7 @@ for library in libraries:
             param.path = param.path.rsplit('/')[-1].rsplit('.')[0]
         else:
             # not a duplicate, so delete attribute.
-            delattr(param, "path")
+            del param.path
 
 for library in libraries:
     for param in library.params:

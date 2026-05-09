@@ -274,7 +274,7 @@ void AP_AIS::send(mavlink_channel_t chan)
 }
 
 #if AP_OADATABASE_ENABLED
-// Send a AIS vessel to the object avoidance database if its postion is valid
+// Send a AIS vessel to the object avoidance database if its position is valid
 void AP_AIS::send_to_object_avoidance_database(const struct ais_vehicle_t &vessel)
 {
     // No point if database is not enabled
@@ -972,7 +972,10 @@ bool AP_AIS::decode_latest_term()
     // handle the last term in a message
     if (_term_is_checksum) {
         _sentence_done = true;
-        uint8_t checksum = 16 * char_to_hex(_term[0]) + char_to_hex(_term[1]);
+        uint8_t checksum;
+        if (!hex_twochars_to_uint8(_term, checksum)) {
+            return false;
+        }
         return ((checksum == _checksum) && _sentence_valid);
     }
 

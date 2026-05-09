@@ -95,7 +95,7 @@ class HWDef:
         '''check if a string is an integer'''
         try:
             int(str)
-        except Exception:
+        except ValueError:
             return False
         return True
 
@@ -279,11 +279,14 @@ class HWDef:
             self.error("Bad env line for %s" % a[0])
         name = a[1]
         value = ' '.join(a[2:])
+        if name == 'OPTIMIZE' and value == '-Os':
+            self.error("'env OPTIMIZE -Os' should not appear in hwdef files, as -Os is the default")
         self.env_vars[name] = value
 
     def get_stale_defines(self):
         '''returns a map with a stale define and a comment as to what to do about it'''
         return {
+            'HAL_COMPASS_DEFAULT': 'HAL_COMPASS_DEFAULT is no longer used; remove it from your hwdef',
             'HAL_NO_GCS': 'HAL_NO_GCS is no longer used; try "define HAL_GCS_ENABLED 0"',
             'HAL_NO_LOGGING': 'HAL_NO_LOGGING is no longer used; try "define HAL_LOGGING_ENABLED 0"',
             'HAL_NO_UARTDRIVER': 'HAL_NO_UARTDRIVER is no longer used; try "define AP_HAL_UARTDRIVER_ENABLED 0"',
@@ -292,11 +295,27 @@ class HWDef:
             'HAL_PROBE_EXTERNAL_I2C_COMPASSES': 'HAL_PROBE_EXTERNAL_I2C_COMPASSES is no longer used; try "define AP_COMPASS_PROBING_ENABLED 1"',  # noqa:E501
             'HAL_SKIP_AUTO_INTERNAL_I2C_PROBE': 'HAL_SKIP_AUTO_INTERNAL_I2C_PROBE is no longer used; try "define AP_COMPASS_INTERNAL_BUS_PROBING_ENABLED 0',  # noqa:E501
             'HAL_COMPASS_DISABLE_IST8310_INTERNAL_PROBE': 'HAL_COMPASS_DISABLE_IST8310_INTERNAL_PROBE is no longer used; try "define AP_COMPASS_IST8310_INTERNAL_BUS_PROBING_ENABLED 0"',  # noqa:E501
+            'BOARD_PWM_COUNT_DEFAULT': 'BOARD_PWM_COUNT_DEFAULT is no longer used; remove it from your hwdef files',
+            'HAL_PICCOLO_CAN_ENABLE': 'HAL_PICCOLO_CAN_ENABLE was renamed to AP_PICCOLOCAN_ENABLED; fix your hwdef file',
+            'HAL_PERIPH_ENABLE_NETWORKING': 'HAL_PERIPH_ENABLE_NETWORKING is no longer used; try "define AP_PERIPH_NETWORKING_ENABLED 1"',  # noqa:E501
+            'HAL_PROBE_EXTERNAL_I2C_BAROS': 'HAL_PROBE_EXTERNAL_I2C_BAROS is no longer used; try "define AP_BARO_PROBE_EXTERNAL_I2C_BUSES 1"',  # noqa:E501
         }
 
     def assert_good_define(self, name):
         if name in self.stale_defines:
             self.error(self.stale_defines[name])
+
+    def is_periph_fw(self):
+        return False
+
+    def validate_periph_defines(self):
+        '''error if any AP_PERIPH_* define is present on a non-AP_Periph board'''
+        if self.is_periph_fw():
+            return
+
+        for name in self.intdefines:
+            if name.startswith('AP_PERIPH_') and self.intdefines[name]:
+                self.error(f"define {name} is only valid on AP_Periph boards")
 
     def process_line_define(self, line, depth, a):
         # defines are currently written out a little haphazardly, but
@@ -577,16 +596,7 @@ class HWDef:
             driver = baro.driver
             probe = baro.probe
 
-            args = ['*this']
-
             n = len(devlist)+1
-
-            args = []
-
-            if driver == "DPS280":
-                # special handling for DPS280; use a probe method of
-                # the correct signature to pass into probe_spi_dev:
-                probe = "probe_280"
 
             backend_probe_method = f"AP_Baro_{driver}::{probe}"
 

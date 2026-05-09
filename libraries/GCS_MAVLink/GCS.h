@@ -178,6 +178,7 @@ public:
 #if AP_MAVLINK_FTP_ENABLED
     friend class GCS_FTP;
 #endif
+    friend class MAVLink_routing;
 
     GCS_MAVLINK(AP_HAL::UARTDriver &uart);
     virtual ~GCS_MAVLINK() {}
@@ -228,9 +229,17 @@ public:
                                      mission_type);
     }
 
-    // packetReceived is called on any successful decode of a mavlink message
+    // packetReceived is called on any successful decode of a mavlink
+    // message where the framing is correct (so CRC matches, for
+    // example).
     virtual void packetReceived(const mavlink_status_t &status,
                                 const mavlink_message_t &msg);
+
+    // raw_packetReceived is called on any successful decode of a mavlink
+    // message.
+    void raw_packetReceived(uint8_t framing_status,
+                            const mavlink_status_t &status,
+                            const mavlink_message_t &msg);
 
     // send a mavlink_message_t out this GCS_MAVLINK connection.
     void send_message(uint32_t msgid, const char *pkt) {
@@ -372,7 +381,10 @@ public:
     void send_home_position() const;
     void send_gps_global_origin() const;
     virtual void send_attitude_target() {};
-    virtual void send_position_target_global_int() { };
+    void send_position_target_global_int();
+    // returns a Location to which the vehicle is currently heading,
+    // or would head to in an autonomous mode
+    virtual bool get_target_location(Location &loc) const { return false; }
     virtual void send_position_target_local_ned() { };
     void send_servo_output_raw();
     void send_accelcal_vehicle_position(uint32_t position);
@@ -529,6 +541,7 @@ protected:
         MAVLINK2_SIGNING_DISABLED = (1U << 0),
         NO_FORWARD                = (1U << 1),  // don't forward MAVLink data to or from this device
         NOSTREAMOVERRIDE          = (1U << 2),  // ignore REQUEST_DATA_STREAM messages (eg. from GCSs)
+        FORWARD_BAD_CRC           = (1U << 3),  // forward mavlink packets that don't pass CRC
     };
     bool option_enabled(Option option) const {
         return options & static_cast<uint16_t>(option);
@@ -600,7 +613,7 @@ protected:
     void handle_rally_fetch_point(const mavlink_message_t &msg);
     void handle_rally_point(const mavlink_message_t &msg) const;
 #if HAL_MOUNT_ENABLED
-    virtual void handle_mount_message(const mavlink_message_t &msg);
+    void handle_mount_message(const mavlink_message_t &msg);
 #endif
     void handle_fence_message(const mavlink_message_t &msg);
     void handle_param_value(const mavlink_message_t &msg);
@@ -665,7 +678,13 @@ protected:
         const uint16_t interval_ms = 10000;
     }  _timesync_request;
 
-    void handle_statustext(const mavlink_message_t &msg) const;
+    void handle_statustext(const mavlink_message_t &msg);
+    struct {
+        uint8_t last_src_system;
+        uint8_t last_src_component;
+        uint8_t last_id; // ID from the mavlink packet
+        uint8_t msg_id;  // ID used in our logs
+    } statustext_chunking;
     void handle_named_value(const mavlink_message_t &msg) const;
 
     bool telemetry_delayed() const;
@@ -701,7 +720,9 @@ protected:
     MAV_RESULT handle_command_do_gripper(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_do_sprayer(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_do_set_mode(const mavlink_command_int_t &packet);
+#if AP_MAVLINK_MAV_CMD_GET_HOME_POSITION_ENABLED
     MAV_RESULT handle_command_get_home_position(const mavlink_command_int_t &packet);
+#endif  // AP_MAVLINK_MAV_CMD_GET_HOME_POSITION_ENABLED
     MAV_RESULT handle_command_do_fence_enable(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_debug_trap(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_set_ekf_source_set(const mavlink_command_int_t &packet);
@@ -726,6 +747,10 @@ protected:
     // vehicle-overridable message send function
     virtual bool try_send_message(enum ap_message id);
     virtual void send_global_position_int();
+
+#if AP_MAVLINK_UTM_GLOBAL_POSITION_SENDING_ENABLED
+    void send_utm_global_position() const;
+#endif  // AP_MAVLINK_UTM_GLOBAL_POSITION_SENDING_ENABLED
 
     // message sending functions:
     bool try_send_mission_message(enum ap_message id);
@@ -1318,9 +1343,9 @@ private:
     char statustext_printf_buffer[256+1];
 
 #if AP_GPS_ENABLED
-    virtual AP_GPS::GPS_Status min_status_for_gps_healthy() const {
+    virtual AP_GPS_FixType min_status_for_gps_healthy() const {
         // NO_FIX simply excludes NO_GPS
-        return AP_GPS::GPS_Status::NO_FIX;
+        return AP_GPS_FixType::NONE;
     }
 #endif
 
@@ -1332,8 +1357,8 @@ private:
     uint32_t _sysid_gcs_last_seen_time_ms;
 
     void service_statustext(void);
-#if HAL_MEM_CLASS <= HAL_MEM_CLASS_192 || CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    static const uint8_t _status_capacity = 7;
+#if HAL_MEM_CLASS <= HAL_MEM_CLASS_192
+    static const uint8_t _status_capacity = 10;
 #else
     static const uint8_t _status_capacity = 30;
 #endif

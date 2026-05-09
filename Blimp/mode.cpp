@@ -5,15 +5,12 @@
  * flight modes is in control_acro.cpp, control_stabilize.cpp, etc
  */
 
-#include <AP_Vehicle/AP_MultiCopter.h>
-
 /*
   constructor for Mode object
  */
 Mode::Mode(void) :
     g(blimp.g),
     g2(blimp.g2),
-    inertial_nav(blimp.inertial_nav),
     ahrs(blimp.ahrs),
     motors(blimp.motors),
     loiter(blimp.loiter),
