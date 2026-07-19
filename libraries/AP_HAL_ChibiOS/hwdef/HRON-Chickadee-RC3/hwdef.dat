@@ -1,11 +1,11 @@
 # hw definition file for processing by chibios_hwdef.py
-# for HRON-Chickadee hardware.
+# for HRON-Chickadee-RC3 hardware.
 
 # MCU class and specific type
 MCU STM32H7xx STM32H743xx
 
 # board ID for firmware load
-APJ_BOARD_ID AP_HW_HRON_Chickadee
+APJ_BOARD_ID AP_HW_HRON_Chickadee_RC3
 
 USB_STRING_MANUFACTURER "HRON"
 
@@ -184,7 +184,7 @@ PA14 JTCK-SWCLK SWD  # SWD clock line (replaces LED2)
 define HAL_GPIO_A_LED_PIN -1  # Disable PA13 LED for SWD
 define HAL_GPIO_C_LED_PIN -1  # Disable PA14 LED for SWD
 
-# HRON-Chickadee debug marker control
+# HRON-Chickadee-RC3 debug marker control
 define HRON_CHICKADEE_DEBUG 1
 
 # USB configuration for main firmware

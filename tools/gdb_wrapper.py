@@ -4,7 +4,7 @@ GDB Wrapper with Script Execution Capabilities
 
 This wrapper provides robust process management for GDB with script execution
 capabilities for automated debugging. It's designed specifically for debugging
-the ICP201XX SPI barometer on the HRON-Chickadee board.
+the ICP201XX SPI barometer on the HRON-Chickadee-RC3 board.
 
 Features:
 - Automatic connection to running OpenOCD instance

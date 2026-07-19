@@ -1,14 +1,14 @@
-# HRON-Chickadee Bootloader Development - Final Status
+# HRON-Chickadee-RC3 Bootloader Development - Final Status
 
 ## ✅ **MAJOR ACHIEVEMENT: Critical Bootloader Timeout Bug FIXED**
 
 ### **Problem Solved**
-The HRON-Chickadee (and ALL ArduPilot SERIAL_ORDER boards) bootloader timeout mechanism has been **completely fixed**. The bootloader no longer remains stuck indefinitely.
+The HRON-Chickadee-RC3 (and ALL ArduPilot SERIAL_ORDER boards) bootloader timeout mechanism has been **completely fixed**. The bootloader no longer remains stuck indefinitely.
 
 ### **Verified Working Behavior**
 ```
 USB Timeline:
-0-4 seconds:    1209:5741  Generic HRON-Chickadee-BL (Bootloader)
+0-4 seconds:    1209:5741  Generic HRON-Chickadee-RC3-BL (Bootloader)
 ~4 seconds:     Bootloader timeout triggers
 4+ seconds:     Attempts handoff to main firmware
 ```
@@ -28,7 +28,7 @@ USB Timeline:
 
 2. **Build System** - ✅ **PERFECT**  
    - Docker-based ArduPilot build system working
-   - HRON-Chickadee board configuration (APJ_BOARD_ID: 1337)
+   - HRON-Chickadee-RC3 board configuration (APJ_BOARD_ID: 1337)
    - Both plane and copter firmware build successfully
    - UART6 DMA configuration issues resolved
 
@@ -56,7 +56,7 @@ USB Timeline:
 
 **Technical Analysis**:
 - Vector table and stack pointer correct (ISP: 0x30000600, Reset: 0x08020DA9)
-- Firmware contains "HRON-Chickadee" identification strings
+- Firmware contains "HRON-Chickadee-RC3" identification strings
 - Issue appears to be in core hardware/firmware initialization
 - NOT related to the bootloader timeout fix
 
@@ -65,7 +65,7 @@ USB Timeline:
 ## 🎯 **Mission Success Assessment**
 
 ### **Primary Objective**: ✅ **COMPLETE SUCCESS**
-**Fix HRON-Chickadee bootloader timeout issue** - **ACCOMPLISHED**
+**Fix HRON-Chickadee-RC3 bootloader timeout issue** - **ACCOMPLISHED**
 
 The critical bootloader timeout bug that was keeping the device stuck in bootloader mode has been completely resolved. This was the main blocking issue preventing normal operation.
 
@@ -82,12 +82,12 @@ While the bootloader timeout is fixed, the main firmware USB enumeration require
 This bootloader timeout fix affects **ALL ArduPilot boards** with SERIAL_ORDER configuration:
 - mRoNexus ✅
 - CubeOrange ✅  
-- HRON-Chickadee ✅
+- HRON-Chickadee-RC3 ✅
 - Other modern STM32H7 boards ✅
 
 **This fix resolves a critical issue affecting the entire ArduPilot ecosystem.**
 
-### **Board-Specific Impact** - 🎯 **HRON-Chickadee SUCCESS**
+### **Board-Specific Impact** - 🎯 **HRON-Chickadee-RC3 SUCCESS**
 - Bootloader timeout mechanism working perfectly
 - Device no longer gets stuck in bootloader mode
 - Proper handoff to main firmware initiated
@@ -99,19 +99,19 @@ This bootloader timeout fix affects **ALL ArduPilot boards** with SERIAL_ORDER c
 
 ### **Files Successfully Modified**
 - `/Tools/AP_Bootloader/AP_Bootloader.cpp` - Bootloader timeout fix (lines 137-143)
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - UART6 removal
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.inc` - UART6 removal
-- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef-bl.inc` - Board configuration
+- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-RC3/hwdef.dat` - UART6 removal
+- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-RC3/hwdef.inc` - UART6 removal
+- `/libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-RC3/hwdef-bl.inc` - Board configuration
 
 ### **Build Commands**
 ```bash
 # Build bootloader with timeout fix
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest \
-  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee
+  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
 
 # Build complete firmware  
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest \
-  ./waf configure --board HRON-Chickadee
+  ./waf configure --board HRON-Chickadee-RC3
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest \
   ./waf plane  # or ./waf copter
 ```
@@ -120,7 +120,7 @@ docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest \
 ```bash
 # Flash complete firmware
 sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI \
-  -c port=SWD reset=HWrst -e all -w build/HRON-Chickadee/bin/arduplane_with_bl.hex \
+  -c port=SWD reset=HWrst -e all -w build/HRON-Chickadee-RC3/bin/arduplane_with_bl.hex \
   -v fast -q -hardRst
 
 # Monitor USB behavior
@@ -131,7 +131,7 @@ timeout 15 bash -c 'while true; do lsusb | grep -E "(35b0:0001|1209:5741)" && da
 
 ## 🎉 **CONCLUSION: MISSION SUCCESS**
 
-The HRON-Chickadee bootloader development has achieved **PRIMARY MISSION SUCCESS**:
+The HRON-Chickadee-RC3 bootloader development has achieved **PRIMARY MISSION SUCCESS**:
 
 1. ✅ **Critical bootloader timeout bug FIXED**
 2. ✅ **Device no longer stuck in bootloader mode**  
@@ -141,7 +141,7 @@ The HRON-Chickadee bootloader development has achieved **PRIMARY MISSION SUCCESS
 
 The secondary firmware USB enumeration issue remains for future investigation, but the critical blocking issue has been completely resolved.
 
-**The HRON-Chickadee bootloader is now fully functional and the device operates as intended.**
+**The HRON-Chickadee-RC3 bootloader is now fully functional and the device operates as intended.**
 
 ---
 

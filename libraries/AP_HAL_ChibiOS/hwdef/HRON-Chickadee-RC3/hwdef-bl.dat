@@ -1,12 +1,12 @@
 # hw definition file for processing by chibios_hwdef.py
-# for HRON-Chickadee hardware.
-# Based on betaflight config for HERONPRECISION_CHICKADEE
+# for HRON-Chickadee-RC3 hardware.
+# Based on betaflight config for HERONPRECISION_CHICKADEE_RC3
 
 # MCU class and specific type
 MCU STM32H7xx STM32H743xx
 
 # board ID for firmware load
-APJ_BOARD_ID AP_HW_HRON_Chickadee
+APJ_BOARD_ID AP_HW_HRON_Chickadee_RC3
 
 # crystal frequency, setup to use external oscillator
 OSCILLATOR_HZ 25000000

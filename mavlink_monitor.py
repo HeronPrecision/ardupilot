@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MAVLink Sensor Monitor for HRON-Chickadee
+MAVLink Sensor Monitor for HRON-Chickadee-RC3
 Queries attitude (gyros), altitude (pressure), and heading (compass) via MAVLink
 """
 
@@ -794,7 +794,7 @@ class MAVLinkMonitor:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="MAVLink Sensor Monitor for HRON-Chickadee",
+        description="MAVLink Sensor Monitor for HRON-Chickadee-RC3",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

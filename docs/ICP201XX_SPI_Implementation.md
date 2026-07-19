@@ -1,18 +1,18 @@
-# ICP201XX SPI Implementation for HRON-Chickadee
+# ICP201XX SPI Implementation for HRON-Chickadee-RC3
 
 ## Overview
 
-This document describes the implementation of SPI support for the ICP201XX barometer sensor on the HRON-Chickadee flight controller in Ardupilot. The implementation adapts the existing I2C driver to work with the SPI communication protocol, matching the functionality demonstrated in the Betaflight codebase.
+This document describes the implementation of SPI support for the ICP201XX barometer sensor on the HRON-Chickadee-RC3 flight controller in Ardupilot. The implementation adapts the existing I2C driver to work with the SPI communication protocol, matching the functionality demonstrated in the Betaflight codebase.
 
 ## Background
 
-The ICP201XX is a high-precision barometric pressure sensor from Infineon. While Ardupilot already supported this sensor via I2C, the HRON-Chickadee board uses SPI for communication with the sensor, requiring a specialized implementation.
+The ICP201XX is a high-precision barometric pressure sensor from Infineon. While Ardupilot already supported this sensor via I2C, the HRON-Chickadee-RC3 board uses SPI for communication with the sensor, requiring a specialized implementation.
 
 ## Implementation Status
 
 ### ✅ COMPLETED: SPI Implementation for ICP201XX
 
-The ICP201XX SPI barometer driver has been successfully implemented and tested on the HRON-Chickadee board. The following key issues were resolved:
+The ICP201XX SPI barometer driver has been successfully implemented and tested on the HRON-Chickadee-RC3 board. The following key issues were resolved:
 
 1. **Alternative Chip ID Detection (0x73)**
    - **Issue**: Device responds with chip ID 0x73 in dummy reads instead of the expected 0x63
@@ -55,7 +55,7 @@ The ICP201XX SPI barometer driver has been successfully implemented and tested o
 The SPI interface is configured in `hwdef.dat`:
 
 ```
-# SPI4 pins on HRON-Chickadee
+# SPI4 pins on HRON-Chickadee-RC3
 PE2 SPI4_SCK SPI4
 PE5 SPI4_MISO SPI4
 PE6 SPI4_MOSI SPI4
@@ -215,8 +215,8 @@ To verify the implementation and assist with troubleshooting, a suite of debuggi
 - All required dependencies and configurations included
 
 ### Hardware Testing
-- Firmware successfully flashed to HRON-Chickadee board
-- Board enumerates correctly as HRON-Chickadee (35b0:0001)
+- Firmware successfully flashed to HRON-Chickadee-RC3 board
+- Board enumerates correctly as HRON-Chickadee-RC3 (35b0:0001)
 - Debugging tools verified to work without hanging
 
 ### Current Status
@@ -267,14 +267,14 @@ The Ardupilot implementation follows the same protocol as the working Betaflight
 
 ## Conclusion
 
-The ICP201XX SPI implementation for HRON-Chickadee has been **successfully completed**. The implementation addresses all key challenges:
+The ICP201XX SPI implementation for HRON-Chickadee-RC3 has been **successfully completed**. The implementation addresses all key challenges:
 
 1. **Alternative Chip ID Detection**: Successfully detects chip ID 0x73 in dummy reads
 2. **SPI Protocol Implementation**: Proper command structure (0x3C read, 0x33 write)
 3. **Initialization Stability**: Added timeouts and loop prevention
 4. **Performance Optimization**: Optimized dummy read handling
 
-The barometer now initializes successfully and is ready for use on the HRON-Chickadee board. This implementation can serve as a reference for other boards using the ICP201XX sensor with SPI communication.
+The barometer now initializes successfully and is ready for use on the HRON-Chickadee-RC3 board. This implementation can serve as a reference for other boards using the ICP201XX sensor with SPI communication.
 
 ## Verification Steps
 

@@ -1,10 +1,10 @@
-# MAVLink Sensor Monitor for HRON-Chickadee
+# MAVLink Sensor Monitor for HRON-Chickadee-RC3
 
-This directory contains tools for monitoring sensor data from the HRON-Chickadee target via MAVLink protocol.
+This directory contains tools for monitoring sensor data from the HRON-Chickadee-RC3 target via MAVLink protocol.
 
 ## Overview
 
-The MAVLink monitor queries real-time sensor data from the ArduPilot firmware running on HRON-Chickadee, including:
+The MAVLink monitor queries real-time sensor data from the ArduPilot firmware running on HRON-Chickadee-RC3, including:
 
 - **Attitude (Gyros)**: Roll, pitch, yaw angles and rotation rates
 - **Altitude (Pressure)**: Relative and absolute altitude from barometric sensor
@@ -25,7 +25,7 @@ The MAVLink monitor queries real-time sensor data from the ArduPilot firmware ru
 ```
 
 This will:
-1. Reset the HRON-Chickadee device via SWD
+1. Reset the HRON-Chickadee-RC3 device via SWD
 2. Wait for MAVLink initialization
 3. Display sensor data at 1 Hz until you press Ctrl+C
 

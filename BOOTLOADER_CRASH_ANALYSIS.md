@@ -1,4 +1,4 @@
-# HRON-Chickadee Bootloader Crash Analysis
+# HRON-Chickadee-RC3 Bootloader Crash Analysis
 
 ## Critical Finding: Bootloader Execution Outside Code Region
 

@@ -4,7 +4,7 @@ OpenOCD Wrapper with Timeout Handling
 
 This wrapper provides robust process management for OpenOCD with proper timeout
 handling to prevent hanging. It's designed specifically for debugging the ICP201XX
-SPI barometer on the HRON-Chickadee board.
+SPI barometer on the HRON-Chickadee-RC3 board.
 
 Features:
 - Automatic timeout handling (45s no-data, 5min max runtime)

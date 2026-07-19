@@ -1,10 +1,10 @@
-# HRON-Chickadee Debug Tools
+# HRON-Chickadee-RC3 Debug Tools
 
-This document describes the debugging tools created for the HRON-Chickadee flight controller to help with testing and development of the ICP201XX SPI barometer driver.
+This document describes the debugging tools created for the HRON-Chickadee-RC3 flight controller to help with testing and development of the ICP201XX SPI barometer driver.
 
 ## Overview
 
-The HRON-Chickadee project required robust debugging tools that wouldn't hang and would properly manage OpenOCD and GDB processes. A suite of Python scripts was developed using uv Python to address these requirements.
+The HRON-Chickadee-RC3 project required robust debugging tools that wouldn't hang and would properly manage OpenOCD and GDB processes. A suite of Python scripts was developed using uv Python to address these requirements.
 
 ## Tools Created
 
@@ -152,7 +152,7 @@ This occurs when:
 
 ## Integration with ICP201XX Development
 
-These tools were specifically created to help with the ICP201XX SPI barometer driver development for the HRON-Chickadee board. The driver implementation requires:
+These tools were specifically created to help with the ICP201XX SPI barometer driver development for the HRON-Chickadee-RC3 board. The driver implementation requires:
 
 1. **SPI Configuration**: The ICP201XX uses SPI4 with specific chip select (PE3)
 2. **Command Structure**: Special command bytes (0x33 for write, 0x3C for read)

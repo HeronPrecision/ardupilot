@@ -4,10 +4,10 @@ OSCILLATOR_HZ 25000000
 # USB setup - follow working mRo bootloader pattern
 USB_STRING_MANUFACTURER "mRo"
 
-# board ID for HRON-Chickadee
-APJ_BOARD_ID AP_HW_HRON_Chickadee
+# board ID for HRON-Chickadee-RC3
+APJ_BOARD_ID AP_HW_HRON_Chickadee_RC3
 
-# Enable bootloader timeout fix for HRON-Chickadee (board-specific fix)
+# Enable bootloader timeout fix for HRON-Chickadee-RC3 (board-specific fix)
 # This allows timeout logic to work even with SERIAL_ORDER defined
 define BOOTLOADER_TIMEOUT_FIX
 

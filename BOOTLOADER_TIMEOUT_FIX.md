@@ -1,11 +1,11 @@
-# ArduPilot HRON-Chickadee Bootloader Timeout Fix
+# ArduPilot HRON-Chickadee-RC3 Bootloader Timeout Fix
 
 ## Problem Summary
-The HRON-Chickadee bootloader (and all ArduPilot boards with SERIAL_ORDER configuration) suffers from a critical timeout mechanism failure where the bootloader never times out to hand control to the main firmware.
+The HRON-Chickadee-RC3 bootloader (and all ArduPilot boards with SERIAL_ORDER configuration) suffers from a critical timeout mechanism failure where the bootloader never times out to hand control to the main firmware.
 
 ### Symptoms
 - Device remains stuck in bootloader mode indefinitely
-- USB device ID stays as `1209:5741 Generic HRON-Chickadee-BL` 
+- USB device ID stays as `1209:5741 Generic HRON-Chickadee-RC3-BL` 
 - Main firmware never boots
 - Device appears as "Generic XXX-BL" instead of proper board name
 
@@ -27,7 +27,7 @@ When `SERIAL_ORDER` is defined in the bootloader configuration, it generates `BO
 
 ### Impact
 This bug affects **ALL ArduPilot boards** that define `SERIAL_ORDER` in their bootloader configuration, including:
-- HRON-Chickadee
+- HRON-Chickadee-RC3
 - mRoNexus  
 - CubeOrange
 - Other modern STM32H7 boards
@@ -68,9 +68,9 @@ Move the timeout logic outside the `#ifndef BOOTLOADER_DEV_LIST` conditional blo
 ### Verification
 The fix has been tested and confirmed working:
 
-1. **Bootloader Stage**: Device enumerates as `1209:5741 Generic HRON-Chickadee-BL` for ~2-3 seconds
+1. **Bootloader Stage**: Device enumerates as `1209:5741 Generic HRON-Chickadee-RC3-BL` for ~2-3 seconds
 2. **Handoff Stage**: Brief USB disconnect during firmware handoff  
-3. **Main Firmware Stage**: Device enumerates as `35b0:0001 Heron Precision HRON-Chickadee` and remains stable
+3. **Main Firmware Stage**: Device enumerates as `35b0:0001 Heron Precision HRON-Chickadee-RC3` and remains stable
 
 ## Implementation Notes
 
@@ -105,10 +105,10 @@ Use the `ardupilot-dev` Docker container for reliable builds:
 
 ```bash
 # Build bootloader with fix
-docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest python Tools/scripts/build_bootloaders.py HRON-Chickadee
+docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest python Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
 
 # Build complete firmware  
-docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest ./waf configure --board HRON-Chickadee --debug
+docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest ./waf configure --board HRON-Chickadee-RC3 --debug
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest ./waf plane
 ```
 
@@ -116,11 +116,11 @@ docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest ./waf pl
 ```bash
 # Flash standalone bootloader (for testing)
 sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI \
-  -c port=SWD reset=HWrst -w Tools/bootloaders/HRON-Chickadee_bl.hex -v fast -q -hardRst
+  -c port=SWD reset=HWrst -w Tools/bootloaders/HRON-Chickadee-RC3_bl.hex -v fast -q -hardRst
 
 # Flash complete firmware
 sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI \
-  -c port=SWD reset=HWrst -w build/HRON-Chickadee/bin/arduplane_with_bl.hex -v fast -q -hardRst
+  -c port=SWD reset=HWrst -w build/HRON-Chickadee-RC3/bin/arduplane_with_bl.hex -v fast -q -hardRst
 
 # Monitor USB behavior
 timeout 30 bash -c 'while true; do lsusb | grep -E "(35b0:0001|1209:5741|1209:5740)" && date || echo "No device found"; sleep 1; done'
@@ -130,7 +130,7 @@ timeout 30 bash -c 'while true; do lsusb | grep -E "(35b0:0001|1209:5741|1209:57
 
 To make this fix more targeted and avoid modifying the main bootloader source code, consider creating a board-specific implementation:
 
-1. **Create HRON-Chickadee-specific bootloader configuration**
+1. **Create HRON-Chickadee-RC3-specific bootloader configuration**
 2. **Use conditional compilation based on board ID**
 3. **Implement in board-specific files rather than main source**
 
@@ -143,8 +143,8 @@ To revert this change if needed:
 git checkout Tools/AP_Bootloader/AP_Bootloader.cpp
 
 # Rebuild and flash original bootloader
-rm -f Tools/bootloaders/HRON-Chickadee_bl.*
-docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest python Tools/scripts/build_bootloaders.py HRON-Chickadee
+rm -f Tools/bootloaders/HRON-Chickadee-RC3_bl.*
+docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest python Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
 ```
 
 ## Files Modified
@@ -153,9 +153,9 @@ docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot-dev:latest python T
 
 ## Files Created/Updated
 
-- `/Tools/bootloaders/HRON-Chickadee_bl.bin` - Fixed bootloader binary (18,540 bytes)
-- `/Tools/bootloaders/HRON-Chickadee_bl.elf` - Fixed bootloader with debug symbols  
-- `/Tools/bootloaders/HRON-Chickadee_bl.hex` - Fixed bootloader in Intel HEX format
+- `/Tools/bootloaders/HRON-Chickadee-RC3_bl.bin` - Fixed bootloader binary (18,540 bytes)
+- `/Tools/bootloaders/HRON-Chickadee-RC3_bl.elf` - Fixed bootloader with debug symbols  
+- `/Tools/bootloaders/HRON-Chickadee-RC3_bl.hex` - Fixed bootloader in Intel HEX format
 
 ## Impact Assessment
 

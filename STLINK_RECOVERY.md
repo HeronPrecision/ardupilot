@@ -137,7 +137,7 @@ st-info --probe
 ## Hardware Context
 - **ST-LINK/V2**: USB ID 0483:3748
 - **Target Device**: STM32H743 (chipid 0x0450)
-- **Target Board**: HRON-Chickadee flight controller
+- **Target Board**: HRON-Chickadee-RC3 flight controller
 - **Connection**: SWD (Serial Wire Debug)
 
 ## Summary

@@ -1,7 +1,7 @@
-# Bi-directional DShot variant for HRON-Chickadee
+# Bi-directional DShot variant for HRON-Chickadee-RC3
 # Based on hwdef/HRON-Chickadee/hwdef.dat with optimizations for bi-directional DShot
 
-include ../HRON-Chickadee/hwdef.dat
+include ../HRON-Chickadee-RC3/hwdef.dat
 
 # RC input configuration - must use UART for protocols like FPort when using bi-directional DShot
 undef PE12

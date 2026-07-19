@@ -1,8 +1,8 @@
-# MAVLink Monitor Improvements for HRON-Chickadee
+# MAVLink Monitor Improvements for HRON-Chickadee-RC3
 
 ## Overview
 
-Enhanced the monitor.sh script and created a comprehensive MAVLink monitoring system for the HRON-Chickadee ArduPilot target. The system provides real-time sensor data monitoring with active MAVLink querying and support for both detailed and quiet output modes.
+Enhanced the monitor.sh script and created a comprehensive MAVLink monitoring system for the HRON-Chickadee-RC3 ArduPilot target. The system provides real-time sensor data monitoring with active MAVLink querying and support for both detailed and quiet output modes.
 
 ## Key Improvements
 
@@ -111,4 +111,4 @@ The monitor integrates seamlessly with ArduPilot's MAVLink implementation:
 - Supports all ArduPilot vehicle types
 - Works with standard ArduPilot sensor configuration
 
-This enhanced monitoring system provides comprehensive sensor testing capabilities for the HRON-Chickadee target while maintaining simplicity and usability.
+This enhanced monitoring system provides comprehensive sensor testing capabilities for the HRON-Chickadee-RC3 target while maintaining simplicity and usability.

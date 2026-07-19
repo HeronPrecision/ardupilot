@@ -1,4 +1,4 @@
-# ArduPilot HRON-Chickadee Project Status
+# ArduPilot HRON-Chickadee-RC3 Project Status
 
 ## Current Status - FIFO SAFEGUARDS INTEGRATED ⚠️ HW VALIDATION PENDING
 
@@ -129,7 +129,7 @@ EXCEPT when reading REG_EMPTY itself.
 - `libraries/AP_Baro/AP_Baro_ICP201XX.cpp` - Driver (NEEDS COMPLETION)
 - `libraries/AP_Baro/AP_Baro_ICP201XX.h` - Driver header
 - `betaflight/src/main/drivers/barometer/barometer_icp201xx.c` - Reference (WORKING)
-- `libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee/hwdef.dat` - Hardware config
+- `libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-RC3/hwdef.dat` - Hardware config
 - `libraries/AP_HAL_ChibiOS/SPIDevice.cpp` - SPI implementation
 
 ## Test Scripts

@@ -1,13 +1,13 @@
-# HRON-Chickadee SWD Debugging Tips & Commands
+# HRON-Chickadee-RC3 SWD Debugging Tips & Commands
 
 ## Overview
-This guide covers how to use the SWD debugging setup for the HRON-Chickadee flight controller. The SWD debugging system is fully operational and allows for low-level debugging of both bootloader and main firmware.
+This guide covers how to use the SWD debugging setup for the HRON-Chickadee-RC3 flight controller. The SWD debugging system is fully operational and allows for low-level debugging of both bootloader and main firmware.
 
 ## 🎯 ICP201XX SPI Barometer Implementation Status
 
 **STATUS: SUCCESSFULLY IMPLEMENTED**
 
-The ICP201XX barometer driver has been successfully adapted for SPI communication on the HRON-Chickadee board. Key issues resolved:
+The ICP201XX barometer driver has been successfully adapted for SPI communication on the HRON-Chickadee-RC3 board. Key issues resolved:
 
 ### 1. Chip ID Detection
 - **Issue**: Device ID 0x73 appears only in dummy reads, not direct register reads
@@ -79,7 +79,7 @@ Comprehensive test suite to verify wrapper functionality.
 - Prevent hanging processes
 - Clean up resources automatically
 - Provide clear output for debugging
-- Work reliably with the HRON-Chickadee hardware
+- Work reliably with the HRON-Chickadee-RC3 hardware
 
 ## 🛠️ Required Tools
 
@@ -364,11 +364,11 @@ Edit `/home/user/ardupilot/debug_gdb.py` to add custom commands or modify the co
 ```bash
 # ✅ CORRECT - Docker-based build (ALWAYS USE THIS):
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest \
-  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee
+  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
 
 # ❌ FORBIDDEN - Native build (NEVER DO THIS):
-python3 Tools/scripts/build_bootloaders.py HRON-Chickadee
-./waf configure --board HRON-Chickadee --bootloader
+python3 Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
+./waf configure --board HRON-Chickadee-RC3 --bootloader
 ```
 
 ### Build Recovery After Native Build Mistake
@@ -383,7 +383,7 @@ git submodule update --init --recursive
 
 # 3. Verify Docker builds work
 docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest \
-  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee
+  python3 ./Tools/scripts/build_bootloaders.py HRON-Chickadee-RC3
 ```
 
 ## 🆘 CRITICAL RECOVERY PROCEDURES
@@ -419,7 +419,7 @@ sleep 3 && lsusb | grep 1209:5741
 # 1. Connect ST-LINK, ensure board power
 # 2. Use STM32_Programmer_CLI (NOT OpenOCD for recovery)
 # 3. Perform full chip erase and reflash bootloader
-# 4. Verify USB device appears (1209:5741 for HRON-Chickadee)
+# 4. Verify USB device appears (1209:5741 for HRON-Chickadee-RC3)
 # 5. Test SWD connection recovery
 ```
 
@@ -447,9 +447,9 @@ sudo uhubctl -f -l 2 -a cycle
 
 ## 🚨 CRITICAL LIMITATION: USB Upload Not Functional
 
-### HRON-Chickadee USB Upload Status: NON-FUNCTIONAL
+### HRON-Chickadee-RC3 USB Upload Status: NON-FUNCTIONAL
 
-**Current State:** USB enumeration and bootloader upload methods are NOT working for HRON-Chickadee
+**Current State:** USB enumeration and bootloader upload methods are NOT working for HRON-Chickadee-RC3
 
 **Root Cause: USB Devices Not Available in Docker Containers**
 - **Fundamental Issue:** Docker containers cannot access host USB devices by default
@@ -484,7 +484,7 @@ Native Build Environment:
 **Mandatory Development Workflow:**
 1. **Build firmware:** `docker run --rm -w /ardupilot -v $(pwd):/ardupilot ardupilot:latest ./waf plane`
 2. **Exit Docker:** Return to host environment for USB operations
-3. **Flash firmware:** `sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI -c port=SWD reset=HWrst -w /home/user/ardupilot/build/HRON-Chickadee/bin/arduplane_with_bl.hex -v fast -q -hardRst`
+3. **Flash firmware:** `sudo ~/STMicroelectronics/STM32Cube/STM32CubeProgrammer/bin/STM32_Programmer_CLI -c port=SWD reset=HWrst -w /home/user/ardupilot/build/HRON-Chickadee-RC3/bin/arduplane_with_bl.hex -v fast -q -hardRst`
 4. **Debug via SWD:** `openocd -f /home/user/ardupilot/hron_chickadee_swd.cfg`
 
 **Critical Design Constraint:**
@@ -505,7 +505,7 @@ Native Build Environment:
 # 7. Only proceed to next change if all functionality preserved
 ```
 
-### Docker Build Commands for HRON-Chickadee
+### Docker Build Commands for HRON-Chickadee-RC3
 
 ```bash
 # Build bootloader using Docker (when build system working)
@@ -517,7 +517,7 @@ docker images | grep ardupilot
 ```
 
 ### Expected Bootloader File Sizes
-- **Original HRON-Chickadee bootloader:** ~18,364 bytes (.bin)
+- **Original HRON-Chickadee-RC3 bootloader:** ~18,364 bytes (.bin)
 - **With SWD changes:** Should be ~18,548 bytes (.bin)
 - **If files unchanged after build:** Build system not detecting hwdef changes
 
@@ -540,7 +540,7 @@ docker images | grep ardupilot
 
 ## 🤝 Support
 
-For issues with the HRON-Chickadee SWD debugging:
+For issues with the HRON-Chickadee-RC3 SWD debugging:
 1. Check the OpenOCD output for error messages
 2. Verify ST-LINK connection and drivers
 3. Ensure proper power to the target device

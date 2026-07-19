@@ -1,6 +1,6 @@
 # ICP201XX Barometer Verification Tools
 
-This directory contains tools to verify that the ICP201XX SPI barometer implementation is working correctly on the HRON-Chickadee board.
+This directory contains tools to verify that the ICP201XX SPI barometer implementation is working correctly on the HRON-Chickadee-RC3 board.
 
 ## Overview
 
@@ -135,4 +135,4 @@ The key changes made to fix the ICP201XX SPI driver:
    - Added logic to skip dummy reads once chip ID is detected
    - Improved performance after initialization
 
-The driver now successfully initializes the ICP201XX barometer via SPI on the HRON-Chickadee board, matching the functionality of the working Betaflight implementation.
+The driver now successfully initializes the ICP201XX barometer via SPI on the HRON-Chickadee-RC3 board, matching the functionality of the working Betaflight implementation.
