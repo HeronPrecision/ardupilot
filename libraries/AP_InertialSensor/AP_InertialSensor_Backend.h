@@ -156,6 +156,7 @@ public:
         DEVTYPE_INS_ASM330   = 0x3F,
         DEVTYPE_INS_ADIS16607 = 0x40,
         DEVTYPE_INS_ZEROONE_FPGA_SCH16T = 0x41,
+        DEVTYPE_INS_ISM6HG256X = 0x42,
     };
 
 protected:

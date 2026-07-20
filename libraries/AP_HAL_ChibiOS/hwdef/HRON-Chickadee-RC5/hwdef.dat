@@ -133,17 +133,17 @@ define AP_BARO_BMP581_ENABLED 1
 define HAL_BARO_PROBE_LIST HAL_BARO_PROBE1
 
 # ----------------------------------------------------------------------------
-# IMUs - 3x ISM6HG256X (ST).  *** INTERIM: using LSM6DSV backend so firmware builds ***
-# The real part is the ST ISM6HG256X (schematic mislabels it ICM-42688-P). A dedicated
-# ISM6HG256X driver (base: AP_InertialSensor_LSM6DSV + ISM6HG256X datasheet) is the next
-# milestone. Rotations below are RC3 carry-overs and MUST be re-verified for the ST die.
+# IMUs - 3x ISM6HG256X (ST).  Dedicated AP_InertialSensor_ISM6HG256X driver (WHO_AM_I 0x73).
+# The real part is the ST ISM6HG256X (schematic mislabels it ICM-42688-P).
+# Low-g accel + gyro are the standard IMU (16g / 2000dps); the +/-256g high-g channel is fused
+# in per-axis to auto-range past the 16g rail. Rotations are RC3 carry-overs, verify on bench.
 # Also verify the ISM6HG256X pinout matches the ICM-42688-P footprint (esp. INT1 + CLKIN).
 SPIDEV imu1 SPI1 DEVID1 GYRO1_CS MODE3 2*MHZ 8*MHZ
 SPIDEV imu2 SPI1 DEVID2 GYRO2_CS MODE3 2*MHZ 8*MHZ
 SPIDEV imu3 SPI4 DEVID2 GYRO3_CS MODE3 2*MHZ 8*MHZ
-IMU LSM6DSV SPI:imu1 ROTATION_PITCH_180
-IMU LSM6DSV SPI:imu2 ROTATION_ROLL_180_YAW_90
-IMU LSM6DSV SPI:imu3 ROTATION_ROLL_180_YAW_90
+IMU ISM6HG256X SPI:imu1 ROTATION_PITCH_180
+IMU ISM6HG256X SPI:imu2 ROTATION_ROLL_180_YAW_90
+IMU ISM6HG256X SPI:imu3 ROTATION_ROLL_180_YAW_90
 
 # Gyro data-ready interrupts (ICM*-INT nets)
 PD15 GYRO1_EXTI INPUT   # ICM1-INT (IMU1)  -- was wrongly used as M8 PWM
