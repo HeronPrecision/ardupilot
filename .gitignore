@@ -176,3 +176,6 @@ autotest_result_*_junit.xml
 .python-version
 sourceme.env
 uv.lock
+
+libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-*/scripts/
+libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-*/*.rc3carry

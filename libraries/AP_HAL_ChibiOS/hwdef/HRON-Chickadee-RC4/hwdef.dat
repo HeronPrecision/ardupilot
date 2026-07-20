@@ -1,18 +1,23 @@
 # hw definition file for processing by chibios_hwdef.py
 # for HRON-Chickadee-RC4 hardware.
+#
+# Verified against schematic Project-rc5.pdf (MCU/Connectors/Sensors/OSD/Power sheets)
+# 2026-07: net names + TFBGA100 ball assignments confirmed against the STM32H753VI datasheet.
+# NOTE: schematic COMPONENT LABELS are known-stale in places (see IMU + baro notes below).
 
-# MCU class and specific type
+# MCU class and specific type (STM32H753VIH6, TFBGA100 - H743 target class in ArduPilot)
 MCU STM32H7xx STM32H743xx
 
 # board ID for firmware load
 APJ_BOARD_ID AP_HW_HRON_Chickadee_RC4
 
 USB_STRING_MANUFACTURER "Heron Precision"
+USB_STRING_PRODUCT "HRON-Chickadee-RC4"
+USB_VENDOR  0x35B0   # Heron Precision (verify VID registration)
+USB_PRODUCT 0x0002   # Chickadee RC4
 
 # crystal frequency, setup to use external oscillator
 OSCILLATOR_HZ 25000000
-
-# MCU_CLOCKRATE_MHZ 480
 
 FLASH_SIZE_KB 2048
 
@@ -23,90 +28,139 @@ STORAGE_FLASH_PAGE 14
 define HAL_STORAGE_SIZE 32768
 
 # ChibiOS system timer
-# STM32_ST_USE_TIMER 12
 STM32_ST_USE_TIMER 5
 define CH_CFG_ST_RESOLUTION 16
 
-# SPI devices
-# SPI1 (IMU1 and IMU2)
-PB3 SPI1_SCK SPI1
+# ----------------------------------------------------------------------------
+# SPI buses
+# ----------------------------------------------------------------------------
+# SPI1 (IMU1 + IMU2)
+PB3 SPI1_SCK  SPI1
 PB4 SPI1_MISO SPI1
 PB5 SPI1_MOSI SPI1
 
-# SPI4 (IMU3 and Baro)
-PE2 SPI4_SCK SPI4
+# SPI4 (IMU3 + Baro)
+PE2 SPI4_SCK  SPI4
 PE5 SPI4_MISO SPI4
 PE6 SPI4_MOSI SPI4
 
 # Chip select pins
-PB2 GYRO1_CS CS
-PB15 GYRO2_CS CS
-PE4 GYRO3_CS CS
-PE3 BARO_CS CS
+PB2  GYRO1_CS CS    # SPI1-CS1  (IMU1)
+PB15 GYRO2_CS CS    # SPI1-CS2  (IMU2)
+PE4  GYRO3_CS CS    # SPI4-CS-ICM (IMU3)
+PE3  BARO_CS  CS    # SPI4-CS-PRESS (baro)
 
-# Beeper - PE1 can also be TX for UART8
-# PE1 used for UART8_TX, not buzzer
-#define HAL_BUZZER_PIN -1  # No buzzer pin available
-
+# ----------------------------------------------------------------------------
 # SERIAL ports
-SERIAL_ORDER OTG1 USART1 USART2 USART3 USART6 UART7 UART8
+# ----------------------------------------------------------------------------
+# SERIAL0 OTG1(USB) | 1 USART1 | 2 USART2 | 3 USART3(GPS) | 4 USART6(DJI/DisplayPort)
+# 5 UART7 | 6 UART8(ESC telem) | 7 UART4 | 8 UART5(onboard OSD/DisplayPort)
+SERIAL_ORDER OTG1 USART1 USART2 USART3 USART6 UART7 UART8 UART4 UART5
 
 # USB
 PA11 OTG_FS_DM OTG1
 PA12 OTG_FS_DP OTG1
 
-# USART1
+# USART1 (TX1=PB14, RX1=PA10) - external VTX / spare (CN7)
 PA10 USART1_RX USART1
 PB14 USART1_TX USART1
-define DEFAULT_SERIAL1_PROTOCOL SerialProtocol_MSP_DisplayPort
 
-# USART2
+# USART2 (TX2=PA2, RX2=PA3) - CN2 / breakout
 PA2 USART2_TX USART2
 PA3 USART2_RX USART2
 
-# USART3
+# USART3 (TX3=PD8, RX3=PD9) - GPS/compass connector (CN8)
 PD8 USART3_TX USART3
 PD9 USART3_RX USART3
 define DEFAULT_SERIAL3_PROTOCOL SerialProtocol_GPS
 
-# USART6 (TX6/RX6 - moved from previous RC3 location)
-PC7 USART6_RX USART6
+# USART6 (TX6=PC6, RX6=PC7) - DJI air unit / digital VTX (CN6/CN7)
 PC6 USART6_TX USART6
+PC7 USART6_RX USART6
+define DEFAULT_SERIAL4_PROTOCOL SerialProtocol_MSP_DisplayPort
 
-# UART7
+# UART7 (TX7=PE8, RX7=PA8) - CN3 / breakout
 PE8 UART7_TX UART7
 PA8 UART7_RX UART7
 
-# UART8
+# UART8 (TX8=PE1, RX8=PE0) - ESC telemetry (RX8 shared on CN4/CN5)
 PE0 UART8_RX UART8
 PE1 UART8_TX UART8
-define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_ESCTelemetry
+define DEFAULT_SERIAL6_PROTOCOL SerialProtocol_ESCTelemetry
 
-# I2C ports
+# UART4 (TX4=PB9, RX4=PB8) - connector serial (CN2/CN10/pads)
+PB8 UART4_RX UART4
+PB9 UART4_TX UART4
+
+# UART5 (RX5=PB12<-OSD TX, TX5=PB13->OSD RX) - onboard STM32G431 OSD coprocessor
+PB12 UART5_RX UART5
+PB13 UART5_TX UART5
+define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_MSP_DisplayPort
+
+# ----------------------------------------------------------------------------
+# I2C
+# ----------------------------------------------------------------------------
+# PB6/PB7 carry both I2C1(AF4) and I2C4(AF6); schematic routes "I2C4" but the pins
+# are identical - I2C1 is used here (better DMA options). Bus is SHARED between the
+# onboard BMM350 compass and the external GPS/compass connector (TWI-SDA/SCL).
 I2C_ORDER I2C1
-
-# I2C1 for BMM350 compass
 PB6 I2C1_SCL I2C1
 PB7 I2C1_SDA I2C1
 
-# CAN buses
-# Only CAN1 available on RC4 (CAN2 removed)
-PD0  CAN1_RX CAN1
-PD1  CAN1_TX CAN1
+# ----------------------------------------------------------------------------
+# CAN (FDCAN1 on PD0/PD1)
+# ----------------------------------------------------------------------------
+PD0 CAN1_RX CAN1
+PD1 CAN1_TX CAN1
+# CAN transceiver control lines (PD3=S-CAN1 -> TJA1051 S/standby pin; PD10=CAN1-SW).
+# Drive PD3 LOW = normal (non-silent) mode. PD10 function/polarity to be confirmed; default LOW.
+PD3  GPIO_CAN1_SILENT OUTPUT PUSHPULL SPEED_LOW LOW GPIO(70)
+PD10 GPIO_CAN1_SW     OUTPUT PUSHPULL SPEED_LOW LOW GPIO(71)
 
-# Compass - BMM350 on I2C1
+# ----------------------------------------------------------------------------
+# Compass - BMM350 on I2C @ 0x14 (internal, fixed orientation)
+# ----------------------------------------------------------------------------
 COMPASS BMM350 I2C:0:0x14 false ROTATION_NONE
 define AP_COMPASS_BMM350_ENABLED 1
 
-# Barometer - ICP201XX on SPI4 (same as RC3)
+# ----------------------------------------------------------------------------
+# Barometer - RC4: ICP-20100 on SPI4 (AP_Baro_ICP201XX driver family)
+# ----------------------------------------------------------------------------
 SPIDEV baro SPI4 DEVID1 BARO_CS MODE0 1*MHZ 8*MHZ
 BARO ICP201XX SPI:baro
 define AP_BARO_ICP201XX_ENABLED 1
-# HAL_BARO_PROBE1 is auto-generated from BARO line above
 define HAL_BARO_PROBE_LIST HAL_BARO_PROBE1
 
-# ADC ports
-# ADC1
+# ----------------------------------------------------------------------------
+# IMUs - 3x ISM6HG256X (ST).  *** INTERIM: using LSM6DSV backend so firmware builds ***
+# The real part is the ST ISM6HG256X (schematic mislabels it ICM-42688-P). A dedicated
+# ISM6HG256X driver (base: AP_InertialSensor_LSM6DSV + ISM6HG256X datasheet) is the next
+# milestone. Rotations below are RC3 carry-overs and MUST be re-verified for the ST die.
+# Also verify the ISM6HG256X pinout matches the ICM-42688-P footprint (esp. INT1 + CLKIN).
+SPIDEV imu1 SPI1 DEVID1 GYRO1_CS MODE3 2*MHZ 8*MHZ
+SPIDEV imu2 SPI1 DEVID2 GYRO2_CS MODE3 2*MHZ 8*MHZ
+SPIDEV imu3 SPI4 DEVID2 GYRO3_CS MODE3 2*MHZ 8*MHZ
+IMU LSM6DSV SPI:imu1 ROTATION_PITCH_180
+IMU LSM6DSV SPI:imu2 ROTATION_ROLL_180_YAW_90
+IMU LSM6DSV SPI:imu3 ROTATION_ROLL_180_YAW_90
+
+# Gyro data-ready interrupts (ICM*-INT nets)
+PD15 GYRO1_EXTI INPUT   # ICM1-INT (IMU1)  -- was wrongly used as M8 PWM
+PD5  GYRO2_EXTI INPUT   # ICM2-INT (IMU2)
+PE15 GYRO3_EXTI INPUT   # ICM3-INT (IMU3)
+
+# PB0 = "ICM-CLKIN" net to the IMU footprint. The ISM6HG256X uses its internal clock +
+# DRDY sampling (no external CLKIN like the ICM parts), so leave this high-Z. Verify the
+# ISM6HG256X footprint pin at this location before driving it.
+PB0 GYRO_CLKIN INPUT
+
+define HAL_INS_NUM_GYROS 3
+define HAL_INS_NUM_ACCELS 3
+define HAL_DEFAULT_INS_FAST_SAMPLE 3
+
+# ----------------------------------------------------------------------------
+# ADC (battery / current)
+# ----------------------------------------------------------------------------
 PC0 BATT_VOLTAGE_SENS ADC1 SCALE(1)
 define HAL_BATT_VOLT_PIN 10
 define HAL_BATT_VOLT_SCALE 12.02
@@ -115,83 +169,85 @@ define HAL_BATT_CURR_PIN 13
 define HAL_BATT_CURR_SCALE 16.8
 PC4 BATT2_CURRENT_SENS ADC1 SCALE(1)
 define HAL_BATT_MONITOR_DEFAULT 4
+# NOTE: verify divider ratios / scales against the Power sheet (carried from RC3).
 
-# MOTORS - Bi-directional DShot enabled by default for RC4
-# M9/M11 and M10/M12 swapped from RC3
-# M9-M12 use TIM2, M1-M8 use TIM1/TIM4
-# Preference for CAN pins over M11/M12 - use alternate pins if needed
-PE9  TIM1_CH1  TIM1  PWM(1)  GPIO(50) BIDIR # M1
-PE11 TIM1_CH2  TIM1  PWM(2)  GPIO(51) BIDIR # M2
-PE13 TIM1_CH3  TIM1  PWM(3)  GPIO(52) BIDIR # M3
-PE14 TIM1_CH4  TIM1  PWM(4)  GPIO(53) BIDIR # M4
-PD12 TIM4_CH1  TIM4  PWM(5)  GPIO(54) BIDIR # M5
-PD13 TIM4_CH2  TIM4  PWM(6)  GPIO(55) BIDIR # M6
-PD14 TIM4_CH3  TIM4  PWM(7)  GPIO(56) BIDIR # M7
-PD15 TIM4_CH4  TIM4  PWM(8)  GPIO(57) # M8 (no DMA, bidirectional DShot not possible)
-# M9/M10 on PB10/PB11 (swapped from RC3)
-PB10 TIM2_CH3  TIM2  PWM(9)  GPIO(58) BIDIR # M9
-PB11 TIM2_CH4  TIM2  PWM(10) GPIO(59) BIDIR # M10
-# M11/M12 on PA0/PA1 (swapped from RC3) - available, not used by default for CAN preference
-# To use M11/M12, uncomment these lines:
-# PA0  TIM2_CH1  TIM2  PWM(11) GPIO(60) BIDIR # M11
-# PA1  TIM2_CH2  TIM2  PWM(12) GPIO(61) BIDIR # M12
+# ----------------------------------------------------------------------------
+# MOTORS - 10 outputs (M1-M10). Bi-directional DShot default.
+# M11 (PA0/TIM2_CH1) and M12 (PA1/TIM2_CH2) exist but are NOT broken out -> unused.
+# ----------------------------------------------------------------------------
+PE9  TIM1_CH1 TIM1 PWM(1)  GPIO(50) BIDIR  # M1
+PE11 TIM1_CH2 TIM1 PWM(2)  GPIO(51) BIDIR  # M2
+PE13 TIM1_CH3 TIM1 PWM(3)  GPIO(52) BIDIR  # M3
+PE14 TIM1_CH4 TIM1 PWM(4)  GPIO(53) BIDIR  # M4
+PD12 TIM4_CH1 TIM4 PWM(5)  GPIO(54) BIDIR  # M5
+PD13 TIM4_CH2 TIM4 PWM(6)  GPIO(55) BIDIR  # M6
+PD14 TIM4_CH3 TIM4 PWM(7)  GPIO(56) BIDIR  # M7
+PB1  TIM3_CH4 TIM3 PWM(8)  GPIO(57) BIDIR  # M8  (schematic: PB1/TIM3_CH4)
+PB10 TIM2_CH3 TIM2 PWM(9)  GPIO(58) BIDIR  # M9
+PB11 TIM2_CH4 TIM2 PWM(10) GPIO(59) BIDIR  # M10
 
-# PINIO pins for various functions
-# These may need adjustment based on RC4 schematic
-PE10 CAM_SELECTOR OUTPUT GPIO(81) HIGH
-PE12 TX6_ENABLE OUTPUT GPIO(82) HIGH
+# ----------------------------------------------------------------------------
+# Video / OSD control
+# ----------------------------------------------------------------------------
+# PE10 = AVID-SW: analog video / camera select (SN74LVC1G3157 mux, VID-IN-1 vs VID-IN-2)
+PE10 CAM_SELECT OUTPUT LOW GPIO(81)
+# PE12 = TX6/GND-SW: DJI / TX6 ground-switch enable
+PE12 TX6_GND_SW OUTPUT HIGH GPIO(82)
+# Onboard STM32G431 OSD control (H7 drives its BOOT0 + NRST) - used by the SW1 DFU feature.
+# BOOT0 has a 10k pulldown; drive HIGH to force the OSD MCU into DFU. NRST active-low.
+PA6 OSD_BOOT0 OUTPUT LOW  GPIO(83)   # OSD-BOOT
+PA7 OSD_NRST  OUTPUT HIGH GPIO(84)   # OSD-RST (HIGH = run)
 
-# LEDs - Updated for RC4 (moved from RC3 positions)
-define HAL_GPIO_A_LED_PIN -1  # No A LED (disabled for SWD)
-PA4 LED1 OUTPUT LOW GPIO(91)  # Blue LED
+# ----------------------------------------------------------------------------
+# LEDs - PA4 Blue, PA5 Red, PA15 Green (all active-HIGH: pin->499R->LED->GND)
+# ----------------------------------------------------------------------------
+PA5  LED_RED   OUTPUT LOW GPIO(90)
+PA15 LED_GREEN OUTPUT LOW GPIO(91)
+PA4  LED_BLUE  OUTPUT LOW GPIO(92)
+define HAL_GPIO_A_LED_PIN 90
 define HAL_GPIO_B_LED_PIN 91
+define HAL_GPIO_C_LED_PIN 92
 define HAL_GPIO_LED_ON 1
-define AP_NOTIFY_GPIO_LED_2_ENABLED 0
-define AP_NOTIFY_GPIO_LED_3_ENABLED 0
+define AP_NOTIFY_GPIO_LED_3_ENABLED 1
 
-# SWD Debugging - Full SWD configuration for main firmware
-PA13 JTMS-SWDIO SWD  # SWD data line
-PA14 JTCK-SWCLK SWD  # SWD clock line
+# ----------------------------------------------------------------------------
+# SWD debug (H7 core)
+# ----------------------------------------------------------------------------
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
 
 # HRON-Chickadee-RC4 debug marker control
 define HRON_CHICKADEE_DEBUG 1
 
-# SD Card - follow proper ArduPilot structure
+# ----------------------------------------------------------------------------
+# SD card
+# ----------------------------------------------------------------------------
 include sdcard.inc
 define HAL_OS_FATFS_IO 1
 
-# IMU setup - 3 ICM42688P gyros (ICM3 moved to SPI4 on RC4)
-SPIDEV imu1 SPI1 DEVID1 GYRO1_CS MODE3 1*MHZ 16*MHZ
-SPIDEV imu2 SPI1 DEVID2 GYRO2_CS MODE3 1*MHZ 16*MHZ
-SPIDEV imu3 SPI4 DEVID2 GYRO3_CS MODE3 1*MHZ 16*MHZ
-IMU Invensensev3 SPI:imu1 ROTATION_PITCH_180
-IMU Invensensev3 SPI:imu2 ROTATION_ROLL_180_YAW_90
-IMU Invensensev3 SPI:imu3 ROTATION_ROLL_180_YAW_90
+# ----------------------------------------------------------------------------
+# Onboard OSD coprocessor (STM32G431) SD-card flasher - embedded in ROMFS
+# (tamper-resistant). Auto-loads from @ROMFS/scripts. Inert until OSDF_ACT is set.
+# ----------------------------------------------------------------------------
+define AP_SCRIPTING_ENABLED 1
+ROMFS scripts/OSD_flash.lua libraries/AP_HAL_ChibiOS/hwdef/HRON-Chickadee-RC4/scripts/OSD_flash.lua
 
-# Clock output pin for gyro synchronization (MCU generates sync clock)
-PB0 GYRO_CLKOUT OUTPUT
-
-# Interrupt pins for gyros
-PB1 GYRO1_EXTI INPUT
-PD5 GYRO2_EXTI INPUT
-PE15 GYRO3_EXTI INPUT
-
-# DMA configuration for bi-directional DShot
-DMA_NOSHARE = SPI1* SPI4* TIM1* TIM2* TIM4*
-DMA_PRIORITY = TIM1* TIM2* TIM4_UP TIM4* SPI1* SPI4*
-
-# USB detection pin
+# ----------------------------------------------------------------------------
+# USB VBUS detect
+# ----------------------------------------------------------------------------
 PA9 VBUS INPUT OPENDRAIN
 
-# bmm350 integrated, but also probe external I2C buses
+# ----------------------------------------------------------------------------
+# DMA - bias motor timers (TIM1/2/3/4) + sensor SPI to win DMA first for bidir DShot;
+# sharing still allowed so ADC1 / UARTs get the remaining streams.
+DMA_PRIORITY TIM1* TIM2* TIM3* TIM4* SPI1* SPI4*
+
+# ----------------------------------------------------------------------------
+# Compass / INS misc
+# ----------------------------------------------------------------------------
 define AP_COMPASS_PROBING_ENABLED 1
 define HAL_I2C_INTERNAL_MASK 0
 define HAL_COMPASS_AUTO_ROT_DEFAULT 2
-define HAL_DEFAULT_INS_FAST_SAMPLE 3
-
-# Enable multiple gyros
-define HAL_INS_NUM_GYROS 3
-define HAL_INS_NUM_ACCELS 3
 
 # Bi-directional DShot support
 define HAL_DSHOT_BIDIR 1

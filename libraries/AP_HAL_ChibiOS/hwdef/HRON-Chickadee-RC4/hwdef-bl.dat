@@ -1,7 +1,6 @@
-# hw definition file for processing by chibios_hwdef.py
-# for HRON-Chickadee-RC4 hardware.
+# hw definition file for the HRON-Chickadee-RC4 bootloader
 
-# MCU class and specific type
+# MCU class and specific type (STM32H753VIH6, TFBGA100)
 MCU STM32H7xx STM32H743xx
 
 # board ID for firmware load
@@ -18,26 +17,29 @@ FLASH_RESERVE_START_KB 0
 # the location where the bootloader will put the firmware
 FLASH_BOOTLOADER_LOAD_KB 128
 
-# Reduce bootloader timeout to 2 seconds for faster boot
+# reduce bootloader timeout to 2 seconds for faster boot
 define HAL_BOOTLOADER_TIMEOUT 2
 
-# order of UARTs (and USB)
+# order of UARTs (and USB) - USB only for DFU
 SERIAL_ORDER OTG1
 
 # USB
 PA11 OTG_FS_DM OTG1
 PA12 OTG_FS_DP OTG1
 
-# Chip select pins
-PB2 GYRO1_CS CS
+# deselect on-board sensors while in the bootloader
+PB2  GYRO1_CS CS
 PB15 GYRO2_CS CS
-PE4 GYRO3_CS CS
-PE3 BARO_CS CS
+PE4  GYRO3_CS CS
+PE3  BARO_CS  CS
 
-# LEDs - Keep LED_BOOTLOADER for proper bootloader operation
-PB0 LED_BOOTLOADER OUTPUT HIGH  # LED on PB0 for bootloader
-define HAL_LED_ON 0  # Enable LEDs
+# bootloader status LED - PA4 (Blue), active HIGH (pin->499R->LED->GND)
+PA4 LED_BOOTLOADER OUTPUT LOW
+define HAL_LED_ON 1
 
-# SWD Debugging
-PA13 JTMS-SWDIO SWD  # SWD data line
-PA14 JTCK-SWCLK SWD  # SWD clock line
+# SWD debugging
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
+
+# allow DFU jump from the bootloader
+ENABLE_DFU_BOOT 1
