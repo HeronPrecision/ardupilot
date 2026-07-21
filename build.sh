@@ -30,16 +30,19 @@ case "$1" in
     configure)
         docker run --rm -v "$(pwd):/ardupilot" ardupilot-build /bin/bash -c "cd /ardupilot && ./waf configure --board=$BOARD"
         ;;
-    ""|copter|plane|rover|sub|blinky)
-        docker run --rm -v "$(pwd):/ardupilot" ardupilot-build /bin/bash -c "cd /ardupilot && ./waf --board=$BOARD ${1:-copter} --debug"
+    ""|copter|plane|rover|sub|blinky|antennatracker|tracker)
+        VEHICLE="${1:-copter}"
+        [ "$VEHICLE" = "tracker" ] && VEHICLE=antennatracker
+        docker run --rm -v "$(pwd):/ardupilot" ardupilot-build /bin/bash -c "cd /ardupilot && ./waf --board=$BOARD $VEHICLE --debug"
         ;;
     *)
-        echo "Usage: $0 [rc3|rc4|rc5] [clean|bootloader|configure|copter|plane|rover|sub|blinky]"
+        echo "Usage: $0 [rc3|rc4|rc5] [clean|bootloader|configure|copter|plane|rover|sub|blinky|antennatracker]"
         echo "Default board: RC3"
         echo "Examples:"
-        echo "  $0 rc4 configure    # Configure RC4 build"
-        echo "  $0 rc5 copter      # Build RC5 copter"
-        echo "  $0 rc3 clean       # Clean RC3 build"
+        echo "  $0 rc4 configure       # Configure RC4 build"
+        echo "  $0 rc5 copter          # Build RC5 copter"
+        echo "  $0 rc3 antennatracker  # Build RC3 antenna tracker"
+        echo "  $0 rc3 clean           # Clean RC3 build"
         exit 1
         ;;
 esac
