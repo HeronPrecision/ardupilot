@@ -1,0 +1,7 @@
+# HRON-Chickadee-RC5 default parameters.
+# Run the 3x ISM6HG256X IMUs at 8 kHz fast sampling. The fast-sample mask
+# (INS_FAST_SAMPLE=7, all 3 IMUs) is set via HAL_DEFAULT_INS_FAST_SAMPLE in
+# hwdef.dat; MPU_FIFO_FASTSAMPLE_DEFAULT is a hard firmware define so the
+# gyro rate must be defaulted here.
+# INS_GYRO_RATE: 0=1kHz 1=2kHz 2=4kHz 3=8kHz
+INS_GYRO_RATE 3

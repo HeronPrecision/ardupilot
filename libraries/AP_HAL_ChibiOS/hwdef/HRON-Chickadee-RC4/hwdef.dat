@@ -156,7 +156,8 @@ PB0 GYRO_CLKIN INPUT
 
 define HAL_INS_NUM_GYROS 3
 define HAL_INS_NUM_ACCELS 3
-define HAL_DEFAULT_INS_FAST_SAMPLE 3
+# fast-sample ALL 3 IMUs (bitmask, one bit per instance); gyro rate set in defaults.parm
+define HAL_DEFAULT_INS_FAST_SAMPLE 7
 
 # ----------------------------------------------------------------------------
 # ADC (battery / current)
