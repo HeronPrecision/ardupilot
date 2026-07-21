@@ -189,8 +189,8 @@ PB11 TIM2_CH4 TIM2 PWM(10) GPIO(59) BIDIR  # M10
 # ----------------------------------------------------------------------------
 # Video / OSD control
 # ----------------------------------------------------------------------------
-# PE10 = AVID-SW: analog video / camera select (SN74LVC1G3157 mux, VID-IN-1 vs VID-IN-2)
-PE10 CAM_SELECT OUTPUT LOW GPIO(81)
+# PE10 = AVID-SW: analog video / camera select (SN74LVC1G3157 mux). Default HIGH = cam 1 (VID-IN-1).
+PE10 CAM_SELECT OUTPUT HIGH GPIO(81)
 # PE12 = TX6/GND-SW: DJI / TX6 ground-switch enable
 PE12 TX6_GND_SW OUTPUT HIGH GPIO(82)
 # Onboard STM32G431 OSD control (H7 drives its BOOT0 + NRST) - used by the SW1 DFU feature.
