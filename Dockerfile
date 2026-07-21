@@ -81,6 +81,8 @@ RUN echo "if [ -d \"\$HOME/.local/bin\" ] ; then\nPATH=\"\$HOME/.local/bin:\$PAT
 # Clone & install Micro-XRCE-DDS-Gen dependency
 RUN git clone --recurse-submodules --depth 1 --branch v4.7.1 https://github.com/ardupilot/Micro-XRCE-DDS-Gen.git /home/${USER_NAME}/Micro-XRCE-DDS-Gen \
     && cd /home/${USER_NAME}/Micro-XRCE-DDS-Gen \
+    && export JAVA_HOME="$(ls -d /usr/lib/jvm/java-17-openjdk-* | head -1)" \
+    && export PATH="$JAVA_HOME/bin:$PATH" \
     && ./gradlew assemble \
     && export AP_ENV_LOC="/home/${USER_NAME}/.ardupilot_env" \
     && echo "export PATH=\$PATH:$PWD/scripts" >> $AP_ENV_LOC
