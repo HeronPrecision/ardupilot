@@ -255,9 +255,9 @@ define AP_COMPASS_PROBING_ENABLED 1
 define HAL_I2C_INTERNAL_MASK 0
 define HAL_COMPASS_AUTO_ROT_DEFAULT 2
 
-# Bi-directional DShot support
-define HAL_DSHOT_BIDIR 1
-define HAL_DSHOT_TELEMETRY 1
+# Bi-directional DShot is auto-enabled by the BIDIR flags on the motor pins
+# (hwdef tool emits HAL_WITH_BIDIR_DSHOT). Runtime protocol + bidir RPM mask
+# defaults (MOT_PWM_TYPE / SERVO_BLH_BDMASK) live in defaults.parm.
 
 # Default frame type for this board
 define HAL_FRAME_TYPE_DEFAULT 12

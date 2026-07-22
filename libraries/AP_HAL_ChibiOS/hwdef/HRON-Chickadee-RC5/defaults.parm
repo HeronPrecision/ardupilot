@@ -5,3 +5,23 @@
 # gyro rate must be defaulted here.
 # INS_GYRO_RATE: 0=1kHz 1=2kHz 2=4kHz 3=8kHz
 INS_GYRO_RATE 3
+
+# Motor outputs: bidirectional DShot600 by default.
+# MOT_PWM_TYPE 6 = DShot600 for copter motor outputs.
+# Q_M_PWM_TYPE 6 = DShot600 for quadplane VTOL lift motors (ignored on copter /
+#   pure fixed-wing). Fixed-wing throttle DShot is airframe-specific: set
+#   SERVO_BLH_MASK to the ESC channel(s) + SERVO_BLH_OTYPE 6 -- NOT defaulted
+#   here, since a wide mask would force DShot onto servo outputs.
+# SERVO_BLH_BDMASK 255 = bidirectional DShot (RPM telemetry) on M1-M8 (ch 1-8);
+#   widen to 1023 to cover M9/M10. Only affects channels that are DShot.
+MOT_PWM_TYPE 6
+Q_M_PWM_TYPE 6
+SERVO_BLH_BDMASK 255
+
+# CAN1 live by default (CAN is exposed on the connector, so make it usable
+# without manual setup). CAN_P1_DRIVER 1 assigns CAN port 1 to driver 1;
+# CAN_D1_PROTOCOL 1 = DroneCAN (the standard ArduPilot CAN peripheral
+# protocol; also the firmware default, set explicitly here). Bitrate defaults
+# to 1 Mbit. (MAVLink-over-CAN is a separate auto feature, not a protocol here.)
+CAN_P1_DRIVER 1
+CAN_D1_PROTOCOL 1
