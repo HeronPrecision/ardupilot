@@ -116,6 +116,10 @@ PD1 CAN1_TX CAN1
 # Drive PD3 LOW = normal (non-silent) mode. PD10 function/polarity to be confirmed; default LOW.
 PD3  GPIO_CAN1_SILENT OUTPUT PUSHPULL SPEED_LOW LOW GPIO(70)
 PD10 GPIO_CAN1_SW     OUTPUT PUSHPULL SPEED_LOW LOW GPIO(71)
+# OE-1 output enable (PC13), active-LOW: a HW pull-up holds it HIGH = outputs DISABLED, so drive
+# LOW to enable. Was M9_10_ENABLE in RC3; dropped in the RC4 rewrite (RC4/RC5 shipped OE-disabled).
+# PC13 is an RTC-domain low-drive pin (fine for a static enable). Confirm what it gates vs schematic.
+PC13 GPIO_OE1 OUTPUT PUSHPULL SPEED_LOW LOW GPIO(72)
 
 # ----------------------------------------------------------------------------
 # Compass - BMM350 on I2C @ 0x14 (internal, fixed orientation)
