@@ -392,6 +392,11 @@ AP_HW_SkyroninL431                   1320
 # IDs 1330-1339 reserved for Nyxtronics
 AP_HW_NYXTRONICS_NYX405V1            1330
 
+AP_HW_HRON_Chickadee                 1337
+AP_HW_HRON_Chickadee_RC3             1338
+AP_HW_HRON_Chickadee_RC4             1339
+AP_HW_HRON_Chickadee_RC5             1340
+
 AP_HW_FlysparkF4                     1361
 
 # IDs 1362-1369 reserved for SparkNavi
