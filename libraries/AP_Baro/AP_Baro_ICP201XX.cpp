@@ -29,12 +29,21 @@
 #include <AP_Logger/AP_Logger.h>
 
 #include <AP_InertialSensor/AP_InertialSensor_Invensense_registers.h>
+#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL &hal;
 
 #define ICP201XX_ID             0x63
 
+// SPI commands for ICP201XX
+#define ICP201XX_SPI_CMD_WRITE  0x33
+#define ICP201XX_SPI_CMD_READ   0x3C
+
 #define CONVERSION_INTERVAL     25000
+
+// Hardware timing requirement for MODE_SELECT register (matching Betaflight)
+// This delay is UNCONDITIONAL and always applied after MODE_SELECT writes
+#define MODE_SELECT_LATCH_US    200
 
 #define REG_EMPTY               0x00
 #define REG_TRIM1_MSB           0x05
@@ -70,6 +79,17 @@ extern const AP_HAL::HAL &hal;
 #define REG_VERSION             0xD3
 #define REG_FIFO_BASE           0xFA
 
+static constexpr uint8_t ICP201XX_FIFO_PACKET_BYTES = 6;
+static constexpr uint8_t ICP201XX_FIFO_MAX_PACKETS = 16;
+static constexpr uint16_t ICP201XX_FIFO_MAX_BYTES = ICP201XX_FIFO_PACKET_BYTES * ICP201XX_FIFO_MAX_PACKETS;
+static constexpr uint16_t ICP201XX_SPI_MAX_TRANSFER = ICP201XX_FIFO_MAX_BYTES + 2;
+static constexpr uint8_t ICP201XX_MAX_PROCESSED_PACKETS = 8;
+static constexpr float ICP201XX_PRESSURE_MIN_PA = 30000.0f;
+static constexpr float ICP201XX_PRESSURE_MAX_PA = 110000.0f;
+static constexpr float ICP201XX_TEMPERATURE_MIN_C = -40.0f;
+static constexpr float ICP201XX_TEMPERATURE_MAX_C = 85.0f;
+static constexpr uint32_t ICP201XX_SAMPLE_PERIOD_MS = 8;
+
 /*
   constructor
  */
@@ -77,15 +97,36 @@ AP_Baro_ICP201XX::AP_Baro_ICP201XX(AP_Baro &baro, AP_HAL::Device &_dev)
     : AP_Baro_Backend(baro)
     , dev(&_dev)
 {
+    for (uint8_t i = 0; i < SAMPLE_BUFFER_SIZE; i++) {
+        _sample_buffer[i].pressure_pa = 0.0f;
+        _sample_buffer[i].temperature_c = 0.0f;
+        _sample_buffer[i].timestamp_ms = 0;
+    }
+    _sample_head = 0;
+    _sample_count = 0;
+    _last_pressure_pa = 0.0f;
+    _last_temperature_c = 0.0f;
+    _has_valid_sample = false;
+    accum.psum = 0.0f;
+    accum.tsum = 0.0f;
+    accum.count = 0;
+    last_measure_us = 0;
 }
+
+
 
 AP_Baro_Backend *AP_Baro_ICP201XX::probe(AP_Baro &baro, AP_HAL::Device &dev)
 {
     AP_Baro_ICP201XX *sensor = NEW_NOTHROW AP_Baro_ICP201XX(baro, dev);
-    if (!sensor || !sensor->init()) {
+    if (!sensor) {
+        return nullptr;
+    }
+
+    if (!sensor->init()) {
         delete sensor;
         return nullptr;
     }
+
     return sensor;
 }
 
@@ -97,12 +138,24 @@ bool AP_Baro_ICP201XX::init()
 
     dev->get_semaphore()->take_blocking();
 
+    // Wait for sensor to be ready - matching Betaflight startup delay
+    hal.scheduler->delay(100);
+
     uint8_t id = 0xFF;
     uint8_t ver = 0xFF;
-    read_reg(REG_DEVICE_ID, &id);
-    read_reg(REG_DEVICE_ID, &id);
+    
+    // Try reading chip ID multiple times
+    for (int i = 0; i < 3; i++) {
+        if (read_reg(REG_DEVICE_ID, &id)) {
+            hal.scheduler->delay(1);
+            break;
+        }
+        hal.scheduler->delay(1);
+    }
+    
     read_reg(REG_VERSION, &ver);
 
+    // ONLY accept the correct chip ID (0x63) - no exceptions!
     if (id != ICP201XX_ID) {
         goto failed;
     }
@@ -113,16 +166,19 @@ bool AP_Baro_ICP201XX::init()
 
     hal.scheduler->delay(10);
 
-    soft_reset();
-
+    // Boot sequence handles OTP calibration
     if (!boot_sequence()) {
         goto failed;
     }
+
+    // Soft reset before configuration
+    soft_reset();
 
     if (!configure()) {
         goto failed;
     }
 
+    // Wait for FIR filter warmup and discard initial samples
     wait_read();
 
     dev->set_retries(0);
@@ -134,7 +190,9 @@ bool AP_Baro_ICP201XX::init()
 
     dev->get_semaphore()->give();
 
-    dev->register_periodic_callback(CONVERSION_INTERVAL/2, FUNCTOR_BIND_MEMBER(&AP_Baro_ICP201XX::timer, void));
+    // Register timer at 25ms interval (read every 25ms to collect ~3 samples at 120Hz)
+    dev->register_periodic_callback(25000, FUNCTOR_BIND_MEMBER(&AP_Baro_ICP201XX::timer, void));
+
     return true;
 
  failed:
@@ -145,17 +203,57 @@ bool AP_Baro_ICP201XX::init()
 
 void AP_Baro_ICP201XX::dummy_reg()
 {
-    do {
+    // Perform dummy read from EMPTY register as required by ICP201XX protocol
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: need to send read command for EMPTY register
+        // Use full-duplex SPI for proper 3-byte transaction
+        uint8_t buf[3] = { ICP201XX_SPI_CMD_READ, REG_EMPTY, 0xFF };
+        dev->transfer_fullduplex(buf, 3);
+    } else {
+        // I2C mode: standard transfer
         uint8_t reg = REG_EMPTY;
         uint8_t val = 0;
         dev->transfer(&reg, 1, &val, 1);
-    } while (0);
+    }
 }
 
 bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *buf, uint8_t len)
 {
     bool ret;
-    ret = dev->transfer(&reg, 1, buf, len);
+    
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: Use Betaflight-compatible command structure with full-duplex SPI
+        // ICP201XX requires proper 3-byte full-duplex transactions
+        // Command format: [CMD, REG, 0xFF] -> response data appears in byte 2 (third byte)
+        if (len > ICP201XX_FIFO_MAX_BYTES) {
+            return false;
+        }
+
+        const uint16_t transfer_len = len + 2;
+        if (transfer_len > ICP201XX_SPI_MAX_TRANSFER) {
+            return false;
+        }
+
+        uint8_t spi_buf[ICP201XX_SPI_MAX_TRANSFER];
+        
+        // For chip ID read: send [0x3C, 0x0C, 0xFF] and get data in spi_buf[2]
+        spi_buf[0] = ICP201XX_SPI_CMD_READ;  // 0x3C
+        spi_buf[1] = reg;                     // Register address
+        memset(&spi_buf[2], 0xFF, len);       // Dummy bytes to clock in data
+        
+        // Perform full-duplex SPI transaction
+        ret = dev->transfer_fullduplex(spi_buf, transfer_len);
+        
+        if (ret && len > 0) {
+            // Data appears starting at byte 2 (third byte of response)
+            memcpy(buf, &spi_buf[2], len);
+        }
+    } else {
+        // I2C mode: standard transfer
+        ret = dev->transfer(&reg, 1, buf, len);
+    }
+    
+    // Perform dummy read after register access (except for EMPTY register)
     dummy_reg();
     return ret;
 }
@@ -168,42 +266,57 @@ bool AP_Baro_ICP201XX::read_reg(uint8_t reg, uint8_t *val)
 bool AP_Baro_ICP201XX::write_reg(uint8_t reg, uint8_t val)
 {
     bool ret;
-    uint8_t data[2] = { reg, val };
-    ret = dev->transfer(data, sizeof(data), nullptr, 0);
+    
+    if (dev->bus_type() == AP_HAL::Device::BUS_TYPE_SPI) {
+        // SPI mode: Use Betaflight-compatible 3-byte full-duplex transaction
+        // Transaction format: [WRITE_CMD, REG, VAL]
+        uint8_t buf[3];
+        buf[0] = ICP201XX_SPI_CMD_WRITE;  // 0x33
+        buf[1] = reg;
+        buf[2] = val;
+        ret = dev->transfer_fullduplex(buf, 3);
+    } else {
+        // I2C mode: standard transfer
+        uint8_t data[2] = { reg, val };
+        ret = dev->transfer(data, sizeof(data), nullptr, 0);
+    }
+    
     dummy_reg();
     return ret;
 }
 
 void AP_Baro_ICP201XX::soft_reset()
 {
-    /* Stop the measurement */
-    mode_select(0x00);
-
-    hal.scheduler->delay(2);
-
-    /* Flush FIFO */
+    // Perform soft reset command
+    write_reg(REG_MODE_SELECT, 0x80); // Soft reset command
+    hal.scheduler->delay(50); // Reset delay matching Betaflight
+    
+    // Write standby mode
+    write_reg(REG_MODE_SELECT, 0x00);
+    hal.scheduler->delay(5);
+    
+    // Flush FIFO
     flush_fifo();
-
-    /* Mask all interrupts */
-    write_reg(REG_FIFO_CONFIG, 0x00);
-    write_reg(REG_INTERRUPT_MASK, 0xFF);
+    hal.scheduler->delay(5);
+    
+    // Clear any interrupt status
+    uint8_t int_status = 0;
+    if (read_reg(REG_INTERRUPT_STATUS, &int_status)) {
+        if (int_status != 0) {
+            write_reg(REG_INTERRUPT_STATUS, int_status); // Clear by writing back
+        }
+    }
 }
 
 bool AP_Baro_ICP201XX::mode_select(uint8_t mode)
 {
-    uint8_t mode_sync_status = 0;
-
-    do {
-        read_reg(REG_DEVICE_STATUS, &mode_sync_status, 1);
-
-        if (mode_sync_status & 0x01) {
-            break;
-        }
-
-        hal.scheduler->delay(1);
-    } while (1);
-
-    return write_reg(REG_MODE_SELECT, mode);
+    // Write mode and apply UNCONDITIONAL latch delay
+    bool ret = write_reg(REG_MODE_SELECT, mode);
+    
+    // CRITICAL: MODE_SELECT requires 200µs latch delay - ALWAYS apply this
+    hal.scheduler->delay_microseconds(MODE_SELECT_LATCH_US);
+    
+    return ret;
 }
 
 bool AP_Baro_ICP201XX::read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val)
@@ -240,47 +353,160 @@ bool AP_Baro_ICP201XX::read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val)
 
 bool AP_Baro_ICP201XX::get_sensor_data(float *pressure, float *temperature)
 {
-    uint8_t fifo_data[96] {0};
-    uint8_t fifo_packets = 0;
-    int32_t data_temp = 0;
-    int32_t data_press = 0;
-    *pressure = 0;
-    *temperature = 0;
+    *pressure = _last_pressure_pa;
+    *temperature = _last_temperature_c;
 
-    if (read_reg(REG_FIFO_FILL, &fifo_packets)) {
-        fifo_packets  = (uint8_t)(fifo_packets & 0x1F);
-        if (fifo_packets > 16) {
-            flush_fifo();
-            return false;
+    uint8_t fifo_fill = 0;
+    if (!read_reg(REG_FIFO_FILL, &fifo_fill)) {
+        return false;
+    }
+
+    uint8_t available_packets = fifo_fill & 0x1F;
+    if (available_packets == 0) {
+        return false;
+    }
+
+    if (available_packets > ICP201XX_FIFO_MAX_PACKETS) {
+        available_packets = ICP201XX_FIFO_MAX_PACKETS;
+    }
+
+    const bool backlog_exceeded = available_packets > ICP201XX_MAX_PROCESSED_PACKETS;
+    const uint8_t packets_to_process = backlog_exceeded ? ICP201XX_MAX_PROCESSED_PACKETS : available_packets;
+    if (packets_to_process == 0) {
+        return false;
+    }
+
+    const uint16_t bytes_to_read = static_cast<uint16_t>(available_packets) * ICP201XX_FIFO_PACKET_BYTES;
+
+    uint8_t fifo_data[ICP201XX_FIFO_MAX_BYTES] {};
+    if (!read_reg(REG_FIFO_BASE, fifo_data, bytes_to_read)) {
+        return false;
+    }
+
+    const uint32_t now_ms = AP_HAL::millis();
+    uint8_t processed_packets = 0;
+    bool discarded_samples = false;
+
+    for (uint8_t i = 0; i < available_packets; i++) {
+        const uint8_t offset = i * ICP201XX_FIFO_PACKET_BYTES;
+
+        int32_t raw_press = ((int32_t)(fifo_data[offset + 2] & 0x0F) << 16) |
+                            ((int32_t)fifo_data[offset + 1] << 8) |
+                            fifo_data[offset];
+        if (raw_press & 0x080000) {
+            raw_press |= 0xFFF00000;
         }
-        if (fifo_packets > 0 && fifo_packets <= 16 && read_reg(REG_FIFO_BASE, fifo_data, fifo_packets * 2 * 3)) {
-            uint8_t offset = 0;
 
-            for (uint8_t i = 0; i < fifo_packets; i++) {
-                data_press = (int32_t)(((fifo_data[offset + 2] & 0x0f) << 16) | (fifo_data[offset + 1] << 8) | fifo_data[offset]);
-                if (data_press & 0x080000) {
-                    data_press |= 0xFFF00000;
-                }
-                /* P = (POUT/2^17)*40kPa + 70kPa */
-                *pressure += ((float)(data_press) * 40 / 131072) + 70;
-                offset += 3;
+        int32_t raw_temp = ((int32_t)(fifo_data[offset + 5] & 0x0F) << 16) |
+                           ((int32_t)fifo_data[offset + 4] << 8) |
+                           fifo_data[offset + 3];
+        if (raw_temp & 0x080000) {
+            raw_temp |= 0xFFF00000;
+        }
 
-                data_temp = (int32_t)(((fifo_data[offset + 2] & 0x0f) << 16) | (fifo_data[offset + 1] << 8) | fifo_data[offset]);
-                if (data_temp & 0x080000) {
-                    data_temp |= 0xFFF00000;
-                }
-                /* T = (TOUT/2^18)*65C + 25C */
-                *temperature += ((float)(data_temp) * 65 / 262144) + 25;
-                offset += 3;
-            }
+        if (raw_press == 0 && raw_temp == 0) {
+            continue;
+        }
 
-            *pressure = *pressure * 1000 / fifo_packets;
-            *temperature = *temperature / fifo_packets;
-            return true;
+        const float pressure_pa = (static_cast<float>(raw_press) * 40000.0f / 131072.0f) + 70000.0f;
+        const float temperature_c = (static_cast<float>(raw_temp) * 65.0f / 262144.0f) + 25.0f;
+
+        if (pressure_pa < ICP201XX_PRESSURE_MIN_PA || pressure_pa > ICP201XX_PRESSURE_MAX_PA ||
+            temperature_c < ICP201XX_TEMPERATURE_MIN_C || temperature_c > ICP201XX_TEMPERATURE_MAX_C) {
+            continue;
+        }
+
+        if (i >= packets_to_process) {
+            discarded_samples = true;
+            continue;
+        }
+
+        uint32_t sample_timestamp = now_ms;
+        const uint32_t backoff = static_cast<uint32_t>(available_packets - 1 - i) * ICP201XX_SAMPLE_PERIOD_MS;
+        if (sample_timestamp >= backoff) {
+            sample_timestamp -= backoff;
+        } else {
+            sample_timestamp = 0;
+        }
+
+        _sample_buffer[_sample_head].pressure_pa = pressure_pa;
+        _sample_buffer[_sample_head].temperature_c = temperature_c;
+        _sample_buffer[_sample_head].timestamp_ms = sample_timestamp;
+
+        _sample_head = (_sample_head + 1) % SAMPLE_BUFFER_SIZE;
+        if (_sample_count < SAMPLE_BUFFER_SIZE) {
+            _sample_count++;
+        }
+
+        processed_packets++;
+    }
+
+    if (discarded_samples || backlog_exceeded) {
+        flush_fifo();
+    }
+
+    if (processed_packets == 0) {
+        return false;
+    }
+
+    float pressure_sum = 0.0f;
+    float temperature_sum = 0.0f;
+    float pressure_min = 1.0e9f;
+    float pressure_max = -1.0e9f;
+
+    const uint8_t oldest_idx = (_sample_head + SAMPLE_BUFFER_SIZE - _sample_count) % SAMPLE_BUFFER_SIZE;
+    const uint8_t newest_idx = (_sample_head + SAMPLE_BUFFER_SIZE - 1) % SAMPLE_BUFFER_SIZE;
+
+    for (uint8_t i = 0; i < _sample_count; i++) {
+        const uint8_t idx = (oldest_idx + i) % SAMPLE_BUFFER_SIZE;
+        const Sample &sample = _sample_buffer[idx];
+        pressure_sum += sample.pressure_pa;
+        temperature_sum += sample.temperature_c;
+        if (sample.pressure_pa < pressure_min) {
+            pressure_min = sample.pressure_pa;
+        }
+        if (sample.pressure_pa > pressure_max) {
+            pressure_max = sample.pressure_pa;
         }
     }
 
-    return false;
+    const float pressure_mean = pressure_sum / _sample_count;
+    const float temperature_mean = temperature_sum / _sample_count;
+
+    float final_pressure = pressure_mean;
+
+    if (_sample_count >= MIN_SAMPLES_FOR_TREND) {
+        const Sample &oldest = _sample_buffer[oldest_idx];
+        const Sample &newest = _sample_buffer[newest_idx];
+        float slope = 0.0f;
+        const float time_span = static_cast<float>(newest.timestamp_ms - oldest.timestamp_ms);
+        if (time_span > 0.0f) {
+            slope = (newest.pressure_pa - oldest.pressure_pa) / time_span;
+        }
+
+        if (slope > TREND_THRESHOLD_PA_PER_MS) {
+            float bias = (slope / TREND_THRESHOLD_PA_PER_MS) * 0.3f;
+            if (bias > 0.5f) {
+                bias = 0.5f;
+            }
+            final_pressure = pressure_mean + (pressure_max - pressure_mean) * bias;
+        } else if (slope < -TREND_THRESHOLD_PA_PER_MS) {
+            float bias = ((-slope) / TREND_THRESHOLD_PA_PER_MS) * 0.3f;
+            if (bias > 0.5f) {
+                bias = 0.5f;
+            }
+            final_pressure = pressure_mean + (pressure_min - pressure_mean) * bias;
+        }
+    }
+
+    _last_pressure_pa = final_pressure;
+    _last_temperature_c = temperature_mean;
+    _has_valid_sample = true;
+
+    *pressure = _last_pressure_pa;
+    *temperature = _last_temperature_c;
+
+    return true;
 }
 
 bool AP_Baro_ICP201XX::boot_sequence()
@@ -289,53 +515,52 @@ bool AP_Baro_ICP201XX::boot_sequence()
     uint8_t offset = 0, gain = 0, Hfosc = 0;
     uint8_t version = 0;
     uint8_t bootup_status = 0;
-    int ret = 1;
 
-    /*  read version register */
+    // Read version register
     if (!read_reg(REG_VERSION, &version)) {
         return false;
     }
 
     if (version == 0xB2) {
-        /* B2 version Asic is detected. Boot up sequence is not required for B2 Asic, so returning */
+        // B2 version doesn't need boot sequence
         return true;
     }
 
-    /* Read boot up status and avoid re running boot up sequence if it is already done */
+    // Read boot up status and avoid re-running boot sequence if already done
     if (!read_reg(REG_OTP_MTP_OTP_STATUS2, &bootup_status)) {
         return false;
     }
 
     if (bootup_status & 0x01) {
-        /* Boot up sequence is already done, not required to repeat boot up sequence */
+        // Boot sequence already done
         return true;
     }
 
-    /* Bring the ASIC in power mode to activate the OTP power domain and get access to the main registers */
-    mode_select(0x04);
+    // Activate OTP power domain
+    if (!write_reg(REG_MODE_SELECT, 0x04)) return false;
     hal.scheduler->delay(4);
 
-    /* Unlock the main registers */
+    // Unlock master register
     write_reg(REG_MASTER_LOCK, 0x1F);
 
-    /* Enable the OTP and the write switch */
-    read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value);
+    // Enable OTP and write switch
+    if (!read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value)) return false;
     reg_value |= 0x03;
-    write_reg(REG_OTP_MTP_OTP_CFG1, reg_value);
+    if (!write_reg(REG_OTP_MTP_OTP_CFG1, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
 
-    /* Toggle the OTP reset pin */
-    read_reg(REG_OTP_DEBUG2, &reg_value);
-    reg_value |= 1 << 7;
-    write_reg(REG_OTP_DEBUG2, reg_value);
+    // Toggle OTP reset
+    if (!read_reg(REG_OTP_DEBUG2, &reg_value)) return false;
+    reg_value |= (1 << 7);
+    if (!write_reg(REG_OTP_DEBUG2, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
-
-    read_reg(REG_OTP_DEBUG2, &reg_value);
+    
+    if (!read_reg(REG_OTP_DEBUG2, &reg_value)) return false;
     reg_value &= ~(1 << 7);
-    write_reg(REG_OTP_DEBUG2, reg_value);
+    if (!write_reg(REG_OTP_DEBUG2, reg_value)) return false;
     hal.scheduler->delay_microseconds(10);
 
-    /* Program redundant read */
+    // Program redundant read registers
     write_reg(REG_OTP_MTP_MRA_LSB, 0x04);
     write_reg(REG_OTP_MTP_MRA_MSB, 0x04);
     write_reg(REG_OTP_MTP_MRB_LSB, 0x21);
@@ -343,105 +568,113 @@ bool AP_Baro_ICP201XX::boot_sequence()
     write_reg(REG_OTP_MTP_MR_LSB, 0x10);
     write_reg(REG_OTP_MTP_MR_MSB, 0x80);
 
-    /* Read the data from register */
-    ret &= read_otp_data(0xF8, 0x10, &offset);
-    ret &= read_otp_data(0xF9, 0x10, &gain);
-    ret &= read_otp_data(0xFA, 0x10, &Hfosc);
-    hal.scheduler->delay_microseconds(10);
+    // Read OTP calibration values
+    if (!read_otp_data(0xF8, 0x10, &offset)) return false;
+    if (!read_otp_data(0xF9, 0x10, &gain)) return false;
+    if (!read_otp_data(0xFA, 0x10, &Hfosc)) return false;
 
-    /* Write OTP values to main registers */
-    ret &= read_reg(REG_TRIM1_MSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x3F)) | (offset & 0x3F);
-        ret &= write_reg(REG_TRIM1_MSB, reg_value);
-    }
+    // Write OTP values to trim registers
+    if (!read_reg(REG_TRIM1_MSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x3F) | (offset & 0x3F);
+    if (!write_reg(REG_TRIM1_MSB, reg_value)) return false;
 
-    ret &= read_reg(REG_TRIM2_MSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x70)) | ((gain & 0x07) << 4);
-        ret &= write_reg(REG_TRIM2_MSB, reg_value);
-    }
+    if (!read_reg(REG_TRIM2_MSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x70) | ((gain & 0x07) << 4);
+    if (!write_reg(REG_TRIM2_MSB, reg_value)) return false;
 
-    ret &= read_reg(REG_TRIM2_LSB, &reg_value);
-    if (ret) {
-        reg_value = (reg_value & (~0x7F)) | (Hfosc & 0x7F);
-        ret &= write_reg(REG_TRIM2_LSB, reg_value);
-    }
+    if (!read_reg(REG_TRIM2_LSB, &reg_value)) return false;
+    reg_value = (reg_value & ~0x7F) | (Hfosc & 0x7F);
+    if (!write_reg(REG_TRIM2_LSB, reg_value)) return false;
 
     hal.scheduler->delay_microseconds(10);
 
-    /* Update boot up status to 1 */
-    if (ret) {
-        ret &= read_reg(REG_OTP_MTP_OTP_STATUS2, &reg_value);
-        if (!ret) {
-            reg_value |= 0x01;
-            ret &= write_reg(REG_OTP_MTP_OTP_STATUS2, reg_value);
-        }
-    }
+    // Mark boot as complete
+    if (!read_reg(REG_OTP_MTP_OTP_STATUS2, &reg_value)) return false;
+    reg_value |= 0x01;
+    if (!write_reg(REG_OTP_MTP_OTP_STATUS2, reg_value)) return false;
 
-    /* Disable OTP and write switch */
-    read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value);
+    // Disable OTP and write switch
+    if (!read_reg(REG_OTP_MTP_OTP_CFG1, &reg_value)) return false;
     reg_value &= ~0x03;
-    write_reg(REG_OTP_MTP_OTP_CFG1, reg_value);
+    if (!write_reg(REG_OTP_MTP_OTP_CFG1, reg_value)) return false;
 
-    /* Lock the main register */
-    write_reg(REG_MASTER_LOCK, 0x00);
+    // Lock master register
+    if (!write_reg(REG_MASTER_LOCK, 0x00)) return false;
 
-    /* Move to standby */
-    mode_select(0x00);
+    // Return to standby mode
+    if (!write_reg(REG_MODE_SELECT, 0x00)) return false;
+    hal.scheduler->delay(10);
 
-    return ret;
+    return true;
 }
 
 bool AP_Baro_ICP201XX::configure()
 {
-    uint8_t reg_value = 0;
+    // Configure using Read-Modify-Write for each field, matching Betaflight exactly
+    // This ensures proper sequencing and timing
+    
+    // Set forced meas trigger = 0 (standby)
+    uint8_t reg_value;
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 4)) | (0 << 4);
+    if (!mode_select(reg_value)) return false;
 
-    /* Initiate Triggered Operation: Stay in Standby mode */
-    reg_value |= (reg_value & (~0x10)) | ((uint8_t)_forced_meas_trigger << 4);
+    // Set power mode = 0 (normal)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 2)) | (0 << 2);
+    if (!mode_select(reg_value)) return false;
 
-    /* Power Mode Selection: Normal Mode */
-    reg_value |= (reg_value & (~0x04)) | ((uint8_t)_power_mode << 2);
+    // Set FIFO readout mode = 0 (pressure+temp interleaved)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~0x03) | 0;
+    if (!mode_select(reg_value)) return false;
 
-    /* FIFO Readout Mode Selection: Pressure first. */
-    reg_value |= (reg_value & (~0x03)) | ((uint8_t)(_fifo_readout_mode));
+    // Set operation mode = Mode 1 (bits 7-5 = 001 = 120Hz ODR)
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~0xE0) | (1 << 5);  // Mode 1
+    if (!mode_select(reg_value)) return false;
 
-    /* Measurement Configuration */
-    reg_value |= (reg_value & (~0xE0)) | (((uint8_t)_op_mode) << 5);
+    // Finally, set measurement mode = 1 (continuous) - bit 3
+    if (!read_reg(REG_MODE_SELECT, &reg_value)) return false;
+    reg_value = (reg_value & ~(1 << 3)) | (1 << 3);
+    if (!mode_select(reg_value)) return false;
 
-    /* Measurement Mode Selection: Continuous Measurements (duty cycled) */
-    reg_value |= (reg_value & (~0x08)) | ((uint8_t)_meas_mode << 3);
+    hal.scheduler->delay(10);
 
-    return mode_select(reg_value);
+    return true;
 }
 
 void AP_Baro_ICP201XX::wait_read()
 {
-    /*
-    * If FIR filter is enabled, it will cause a settling effect on the first 14 pressure values.
-    * Therefore the first 14 pressure output values are discarded.
-    **/
+    // Wait for FIR filter warmup. The first 14 samples after mode change are invalid.
+    // At 120Hz ODR (Mode 1), 14 samples = ~117ms
+    const uint8_t target_samples = 14;
+    uint8_t fifo_fill = 0;
     uint8_t fifo_packets = 0;
-    uint8_t fifo_packets_to_skip = 14;
 
-    do {
+    // Wait up to 1 second for FIFO to fill with warmup samples
+    for (int i = 0; i < 100; i++) {
         hal.scheduler->delay(10);
-        read_reg(REG_FIFO_FILL, &fifo_packets);
-        fifo_packets = (uint8_t)(fifo_packets & 0x1F);
-    } while (fifo_packets < fifo_packets_to_skip);
+        if (read_reg(REG_FIFO_FILL, &fifo_fill)) {
+            fifo_packets = fifo_fill & 0x1F;
+            if (fifo_packets >= target_samples) {
+                break;
+            }
+        }
+    }
 
+    // Check if FIFO filled during warmup - if not, sensor may not be working
+    if (fifo_packets == 0) {
+        hal.console->printf("ICP201XX: Warning - No FIFO data during warmup\n");
+    }
+
+    // Flush warmup samples
     flush_fifo();
-    fifo_packets = 0;
-
-    do {
-        hal.scheduler->delay(10);
-        read_reg(REG_FIFO_FILL, &fifo_packets);
-        fifo_packets = (uint8_t)(fifo_packets & 0x1F);
-    } while (fifo_packets == 0);
 }
 
 bool AP_Baro_ICP201XX::flush_fifo()
 {
+    // Flush FIFO by setting the flush bit (0x80)
     uint8_t reg_value;
 
     if (!read_reg(REG_FIFO_FILL, &reg_value)) {

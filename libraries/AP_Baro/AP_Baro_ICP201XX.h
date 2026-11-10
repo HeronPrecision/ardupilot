@@ -22,6 +22,7 @@ private:
     void dummy_reg();
     bool read_reg(uint8_t reg, uint8_t *buf, uint8_t len);
     bool read_reg(uint8_t reg, uint8_t *val);
+    uint8_t get_stored_chip_id();
     bool write_reg(uint8_t reg, uint8_t val);
     bool mode_select(uint8_t mode);
     bool read_otp_data(uint8_t addr, uint8_t cmd, uint8_t *val);
@@ -46,6 +47,23 @@ private:
 
     // time last read command was sent
     uint32_t last_measure_us;
+
+    struct Sample {
+        float pressure_pa;
+        float temperature_c;
+        uint32_t timestamp_ms;
+    };
+
+    static constexpr uint8_t SAMPLE_BUFFER_SIZE = 8;
+    static constexpr uint8_t MIN_SAMPLES_FOR_TREND = 3;
+    static constexpr float TREND_THRESHOLD_PA_PER_MS = 0.5f;
+
+    Sample _sample_buffer[SAMPLE_BUFFER_SIZE];
+    uint8_t _sample_head;
+    uint8_t _sample_count;
+    float _last_pressure_pa;
+    float _last_temperature_c;
+    bool _has_valid_sample;
 
     enum class OP_MODE : uint8_t {
 		OP_MODE0 = 0,   /* Mode 0: Bw:6.25 Hz ODR: 25Hz */
@@ -72,10 +90,13 @@ private:
 		MEAS_MODE_CONTINUOUS = 1   /* Continuous measurements based on selected mode ODR settings*/
 	} _meas_mode{MEAS_MODE::MEAS_MODE_CONTINUOUS};
 
-	enum FORCED_MEAS_TRIGGER : uint8_t {
-		FORCE_MEAS_STANDBY = 0,			/* Stay in Stand by */
-		FORCE_MEAS_TRIGGER_FORCE_MEAS = 1	/* Trigger for forced measurements */
-	} _forced_meas_trigger{FORCED_MEAS_TRIGGER::FORCE_MEAS_STANDBY};
-};
+	    enum FORCED_MEAS_TRIGGER : uint8_t {
+			FORCE_MEAS_STANDBY = 0,			/* Stay in Stand by */
+			FORCE_MEAS_TRIGGER_FORCE_MEAS = 1	/* Trigger for forced measurements */
+		} _forced_meas_trigger{FORCED_MEAS_TRIGGER::FORCE_MEAS_STANDBY};
+	    
+	    // Member variable to store detected chip ID from dummy reads
+	    uint8_t _stored_chip_id{0xFF};
+	};
 
 #endif  // AP_BARO_ICP201XX_ENABLED 
