@@ -276,6 +276,10 @@ public:
     // return the selected loop rate at which samples are made avilable
     uint16_t get_loop_rate_hz(void) const { return _loop_rate; }
 
+    // return the fitted high-g IMU part for the ISM6HGxxx family driver
+    // (INS_HG_PART: the high-g parts share WHO_AM_I 0x73)
+    uint8_t get_hg_part(void) const { return _hg_part.get(); }
+
     // return the main loop delta_t in seconds
     float get_loop_delta_t(void) const { return _loop_delta_t; }
 
@@ -707,6 +711,11 @@ private:
 
     // control enable of detected sensors
     AP_UInt8    _enable_mask;
+
+    // fitted high-g IMU part for the ISM6HGxxx family driver (the high-g
+    // parts ISM6HGxxx/LSM6DSVxxx/LSM6DSVxx share WHO_AM_I 0x73 and
+    // cannot be auto-detected)
+    AP_Int8     _hg_part;
     
     // board orientation from AHRS
     enum Rotation _board_orientation;

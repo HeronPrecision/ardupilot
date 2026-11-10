@@ -26,6 +26,7 @@
 #include "AP_InertialSensor_BMI270.h"
 #include "AP_InertialSensor_Backend.h"
 #include "AP_InertialSensor_L3G4200D.h"
+#include "AP_InertialSensor_STX.h"
 #include "AP_InertialSensor_LSM6DSV.h"
 #include "AP_InertialSensor_LSM9DS0.h"
 #include "AP_InertialSensor_LSM9DS1.h"
@@ -700,6 +701,14 @@ const AP_Param::GroupInfo AP_InertialSensor::var_info[] = {
     AP_GROUPINFO("_RAW_LOG_OPT", 56, AP_InertialSensor, raw_logging_options, 0),
 
     // indexes 57 and 58 used by INS_HNTC3 and INS_HNTC4
+
+    // @Param: _HG_PART
+    // @DisplayName: High-g IMU part fitted
+    // @Description: The high-g parts ISM6HGxxx, LSM6DSVxxx and LSM6DSVxx share the same WHO_AM_I (0x73) and cannot be auto-detected, so this selects the fitted part to configure the correct high-g accelerometer full-scale and sensitivity. Auto uses the one full-scale valid on all three parts (+/-128g).
+    // @Values: 0:Auto(+/-128g),1:Variant A(+/-256g),2:Variant B(+/-320g),3:Variant C(+/-80g)
+    // @User: Advanced
+    AP_GROUPINFO("_HG_PART", 59, AP_InertialSensor, _hg_part, 0),
+
 
     /*
       NOTE: parameter indexes have gaps above. When adding new
