@@ -53,9 +53,10 @@ PE3  BARO_CS  CS    # SPI4-CS-PRESS (baro)
 # ----------------------------------------------------------------------------
 # SERIAL ports
 # ----------------------------------------------------------------------------
-# SERIAL0 OTG1(USB) | 1 USART1 | 2 USART2 | 3 USART3(GPS) | 4 USART6(DJI/HD VTX, no default)
-# 5 UART7 | 6 UART8(ESC telem) | 7 UART4 | 8 UART5(onboard OSD, MSP DisplayPort)
-SERIAL_ORDER OTG1 USART1 USART2 USART3 USART6 UART7 UART8 UART4 UART5
+# SERIALn == (U)ARTn, matching the T#/R# silkscreen labels. SERIAL0 is USB.
+# 3 USART3(GPS) | 5 UART5(onboard OSD, MSP DisplayPort) | 6 USART6(DJI/HD VTX, no default)
+# 8 UART8(ESC telem)
+SERIAL_ORDER OTG1 USART1 USART2 USART3 UART4 UART5 USART6 UART7 UART8
 
 # USB
 PA11 OTG_FS_DM OTG1
@@ -78,11 +79,11 @@ define DEFAULT_SERIAL3_PROTOCOL SerialProtocol_GPS
 # the AVID connector on RC4+ (the RC3 TX6/GND mux is gone).
 # No protocol default on purpose: ArduPilot's MSP DisplayPort OSD backend binds to the
 # LOWEST SERIALn set to DisplayPort, so defaulting this port too would steal the OSD from
-# the onboard G431 on SERIAL8. For a DJI/HD VTX OSD instead, set SERIAL4_PROTOCOL 42 and
-# move SERIAL8_PROTOCOL off 42.
+# the onboard G431 on SERIAL5. For a DJI/HD VTX OSD instead, set SERIAL6_PROTOCOL 42 and
+# move SERIAL5_PROTOCOL off 42.
 PC6 USART6_TX USART6
 PC7 USART6_RX USART6
-define DEFAULT_SERIAL4_PROTOCOL SerialProtocol_None
+define DEFAULT_SERIAL6_PROTOCOL SerialProtocol_None
 
 # UART7 (TX7=PE8, RX7=PA8) - CN3 / breakout
 PE8 UART7_TX UART7
@@ -91,7 +92,7 @@ PA8 UART7_RX UART7
 # UART8 (TX8=PE1, RX8=PE0) - ESC telemetry (RX8 shared on CN4/CN5)
 PE0 UART8_RX UART8
 PE1 UART8_TX UART8
-define DEFAULT_SERIAL6_PROTOCOL SerialProtocol_ESCTelemetry
+define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_ESCTelemetry
 
 # UART4 (TX4=PB9, RX4=PB8) - connector serial (CN2/CN10/pads)
 PB8 UART4_RX UART4
@@ -100,7 +101,7 @@ PB9 UART4_TX UART4
 # UART5 (RX5=PB12<-OSD TX, TX5=PB13->OSD RX) - onboard STM32G431 OSD coprocessor
 PB12 UART5_RX UART5
 PB13 UART5_TX UART5
-define DEFAULT_SERIAL8_PROTOCOL SerialProtocol_MSP_DisplayPort
+define DEFAULT_SERIAL5_PROTOCOL SerialProtocol_MSP_DisplayPort
 # OSD_TYPE 5 = MSP DisplayPort so the onboard OSD draws out of the box. The serial
 # manager forces 115200 on DisplayPort ports, matching the G431's 115200 8N1 link.
 define HAL_OSD_TYPE_DEFAULT 5
